@@ -39,6 +39,7 @@ pub mod multisig {
         multisig.owners = owners;
         multisig.threshold = threshold;
         multisig.nonce = nonce;
+        multisig.owner_set_seqno = 0;
         Ok(())
     }
 
@@ -69,6 +70,7 @@ pub mod multisig {
         tx.signers = signers;
         tx.multisig = *ctx.accounts.multisig.to_account_info().key;
         tx.did_execute = false;
+        tx.owner_set_seqno = ctx.accounts.multisig.owner_set_seqno;
 
         Ok(())
     }
@@ -98,6 +100,8 @@ pub mod multisig {
         }
 
         multisig.owners = owners;
+        multisig.owner_set_seqno += 1;
+
         Ok(())
     }
 
@@ -184,6 +188,7 @@ pub struct CreateTransaction<'info> {
 
 #[derive(Accounts)]
 pub struct Approve<'info> {
+    #[account("multisig.owner_set_seqno == transaction.owner_set_seqno")]
     multisig: ProgramAccount<'info, Multisig>,
     #[account(mut, belongs_to = multisig)]
     transaction: ProgramAccount<'info, Transaction>,
@@ -205,6 +210,7 @@ pub struct Auth<'info> {
 
 #[derive(Accounts)]
 pub struct ExecuteTransaction<'info> {
+    #[account("multisig.owner_set_seqno == transaction.owner_set_seqno")]
     multisig: ProgramAccount<'info, Multisig>,
     #[account(seeds = [
         multisig.to_account_info().key.as_ref(),
@@ -220,6 +226,7 @@ pub struct Multisig {
     owners: Vec<Pubkey>,
     threshold: u64,
     nonce: u8,
+    owner_set_seqno: u32,
 }
 
 #[account]
@@ -236,6 +243,8 @@ pub struct Transaction {
     signers: Vec<bool>,
     // Boolean ensuring one time execution.
     did_execute: bool,
+    // Owner set sequence number.
+    owner_set_seqno: u32,
 }
 
 impl From<&Transaction> for Instruction {

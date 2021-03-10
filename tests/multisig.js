@@ -40,10 +40,10 @@ describe("multisig", () => {
     });
 
     let multisigAccount = await program.account.multisig(multisig.publicKey);
-
     assert.equal(multisigAccount.nonce, nonce);
     assert.ok(multisigAccount.threshold.eq(new anchor.BN(2)));
     assert.deepEqual(multisigAccount.owners, owners);
+    assert.ok(multisigAccount.ownerSetSeqno === 0);
 
     const pid = program.programId;
     const accounts = [
@@ -88,6 +88,7 @@ describe("multisig", () => {
     assert.deepEqual(txAccount.data, data);
     assert.ok(txAccount.multisig.equals(multisig.publicKey));
     assert.equal(txAccount.didExecute, false);
+    assert.ok(txAccount.ownerSetSeqno === 0);
 
     // Other owner approves transactoin.
     await program.rpc.approve({
@@ -129,5 +130,6 @@ describe("multisig", () => {
     assert.equal(multisigAccount.nonce, nonce);
     assert.ok(multisigAccount.threshold.eq(new anchor.BN(2)));
     assert.deepEqual(multisigAccount.owners, newOwners);
+    assert.ok(multisigAccount.ownerSetSeqno === 1);
   });
 });
