@@ -87,20 +87,20 @@ pub mod multisig {
 
         Ok(())
     }
+    /*
+        // Sets the owners field on the multisig. The only way this can be invoked
+        // is via a recursive call from execute_transaction -> set_owners.
+        pub fn set_owners(ctx: Context<Auth>, owners: Vec<Pubkey>) -> Result<()> {
+            let multisig = &mut ctx.accounts.multisig;
 
-    // Sets the owners field on the multisig. The only way this can be invoked
-    // is via a recursive call from execute_transaction -> set_owners.
-    pub fn set_owners(ctx: Context<Auth>, owners: Vec<Pubkey>) -> Result<()> {
-        let multisig = &mut ctx.accounts.multisig;
+            if (owners.len() as u64) < multisig.threshold {
+                multisig.threshold = owners.len() as u64;
+            }
 
-        if (owners.len() as u64) < multisig.threshold {
-            multisig.threshold = owners.len() as u64;
+            multisig.owners = owners;
+            Ok(())
         }
-
-        multisig.owners = owners;
-        Ok(())
-    }
-
+    */
     // Changes the execution threshold of the multisig. The only way this can be
     // invoked is via a recursive call from execute_transaction ->
     // change_threshold.
