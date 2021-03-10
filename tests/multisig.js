@@ -57,7 +57,7 @@ describe("multisig", () => {
         isWritable: false,
         isSigner: true,
       },
-    ];/*
+    ];
     const newOwners = [ownerA.publicKey, ownerB.publicKey, ownerD.publicKey];
     const data = program.coder.instruction.encode('set_owners', {
         owners: newOwners,
@@ -128,6 +128,6 @@ describe("multisig", () => {
 
     assert.equal(multisigAccount.nonce, nonce);
     assert.ok(multisigAccount.threshold.eq(new anchor.BN(2)));
-    assert.deepEqual(multisigAccount.owners, newOwners);*/
+    assert.deepEqual(multisigAccount.owners, newOwners);
   });
 });
