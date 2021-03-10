@@ -1,0 +1,46 @@
+dist: bionic
+language: rust
+rust:
+  - nightly
+cache: cargo
+env:
+  - NODE_VERSION="14.7.0"
+
+before_deploy:
+  - anchor build --verifiable
+  - echo "### SHA256 Checksums" > release_notes.md
+  - sha256sum target/deploy/multisig.so > binary.txt
+  - sha256sum target/idl/multisig.json > idl.txt
+  - cat *.txt >> release_notes.md
+
+deploy:
+  provider: releases
+  edge: true
+  file:
+    - "target/deploy/multisig.so"
+    - "target/idl/multisig.json"
+  release_notes_file: release_notes.md
+  skip_cleanup: true
+  on:
+    tags: true
+  api_key:
+    secure: MRahuKj/FhxUwkkvqiI3wJYWKzJ0PVl25ZfFhp5lA7xyYYj/heQOdX1rE8I3MkyBOWlSNAN89JXKQ61czOrkpjK/vjBt7/49iCkWuBd+ZQ0SOjrdFubAMl4ypd3C56v28Q/Rh5bAgm8IiJNeCidfWjiu36ibjAHMAxkwAssp76AV0hboWMJx6i4i8W/iFC8hQhiFa4npkTkrCtL4Vt8qY0fwqNRRpMZBIz22ZglYbhWpkaPMeikFun7Fjn9dvT0PM/xtcjTYOf4sxdjItpYjR0fUF+thuR+z4McgeYko3AZG9Sv8RMvw6yU1Hpq/Okk1wXcxNHyDtz/YriwiPgVzcIW2SGW2YxXh8YZEQFJuVodM8udYjFuNHy+qcNDiCvcoNIj2zYP3iWEVpiv4a3Hr33T/+iGTqLkjlnHcLKI8m2ykbHFtmNEmg6P4faayYkDSeEKRMZSDuA+CKh07LVlBQFyIRB3tfw3+tdBGQXQojgxAwuxnfANhScMpSdjZtdJCS912ijzVeSGa6C33+/fpAqQtCQqwJx+Bl6Bytvq+nBSjojWJZUqvE53IFwD5/bSd6FUIyAQMnQ6t8dOF+OWx0a1rFtpfLYYKZwei8kZlWNd4BLs+V0jkyHTzy0Cztre/EcmXdAHxAX8XrcrWt9sC1gwpApdrtZ20zZhEHsdgY/k=
+
+_defaults: &defaults
+  before_install:
+  - nvm install $NODE_VERSION
+  - npm install -g mocha
+  - npm install -g @project-serum/anchor
+  - sudo apt-get install -y pkg-config build-essential libudev-dev
+  - sh -c "$(curl -sSfL https://release.solana.com/v1.5.5/install)"
+  - export PATH="/home/travis/.local/share/solana/install/active_release/bin:$PATH"
+  - export NODE_PATH="/home/travis/.nvm/versions/node/v$NODE_VERSION/lib/node_modules/:$NODE_PATH"
+  - yes | solana-keygen new
+  - cargo install --git https://github.com/project-serum/anchor anchor-cli --locked
+
+jobs:
+  include:
+    - <<: *defaults
+      name: Runs the tests
+      script:
+        - anchor test
