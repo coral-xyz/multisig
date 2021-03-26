@@ -2,7 +2,6 @@ dist: bionic
 language: rust
 rust:
   - nightly
-cache: cargo
 env:
   - NODE_VERSION="14.7.0"
 
