@@ -4,7 +4,7 @@ rust:
   - stable
 env:
   global:
-    - NODE_VERSION="14.7.0"
+    - NODE_VERSION="v14.7.0"
     - SOLANA_VERSION="v1.6.3"
     - ANCHOR_VERSION="v0.4.1"
 
@@ -15,7 +15,7 @@ before_deploy:
   - sha256sum target/idl/multisig.json > idl.txt
   - cat *.txt >> release_notes.md
   - echo "" >> release_notes.md
-  - echo "Built with Anchor [${ANCHOR_VERSION}](https://github.com/project-serum/anchor/releases/tag/${ANCHOR_VERSION})" >> release_notes.md
+  - echo "Built with Anchor [${ANCHOR_VERSION}](https://github.com/project-serum/anchor/releases/tag/${ANCHOR_VERSION})." >> release_notes.md
 
 deploy:
   provider: releases
@@ -38,9 +38,9 @@ _defaults: &defaults
   - sudo apt-get install -y pkg-config build-essential libudev-dev
   - sh -c "$(curl -sSfL https://release.solana.com/${SOLANA_VERSION}/install)"
   - export PATH="/home/travis/.local/share/solana/install/active_release/bin:$PATH"
-  - export NODE_PATH="/home/travis/.nvm/versions/node/v${NODE_VERSION}/lib/node_modules/:${NODE_PATH}"
+  - export NODE_PATH="/home/travis/.nvm/versions/node/${NODE_VERSION}/lib/node_modules/:${NODE_PATH}"
   - yes | solana-keygen new
-  - cargo install --git https://github.com/project-serum/anchor anchor-cli --tag ${ANCHOR_VERSION} --locked
+  - cargo install --git https://github.com/project-serum/anchor --tag ${ANCHOR_VERSION} anchor-cli --locked
 
 jobs:
   include:
