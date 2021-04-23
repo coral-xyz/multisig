@@ -25,8 +25,15 @@ signed.
 
 ## Deployments
 
-* Devnet: `F3Uf5F61dmht1xuNNNkk3jnzj82TY56vVjVEhZALRkN`
 * Mainnet: `A9HAbnCwoD6f2NkZobKFf6buJoN9gUVVvX5PoUnDHS6u`
+* Devnet: `F3Uf5F61dmht1xuNNNkk3jnzj82TY56vVjVEhZALRkN`
+
+## Upgrade Authority
+
+The program is upgradeable with self-referential multisigs as the authorities.
+
+* Mainnet: `3uztpEgUmvirDBYRXgDamUDZiU5EcgTwArQ2pULtHJPC`
+* Devnet: `FHY7K5SQvp7dUmGScjLih3hcwJe9GZ8cTShXkdeQJzRD`
 
 ## Developing
 
