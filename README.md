@@ -23,6 +23,11 @@ signed.
 
 * **This code is unaudited. Use at your own risk.**
 
+## Deployments
+
+* Devnet: `F3Uf5F61dmht1xuNNNkk3jnzj82TY56vVjVEhZALRkN`
+* Mainnet: `A9HAbnCwoD6f2NkZobKFf6buJoN9gUVVvX5PoUnDHS6u`
+
 ## Developing
 
 [Anchor](https://github.com/project-serum/anchor) is used for developoment, and it's
