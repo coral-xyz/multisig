@@ -128,12 +128,8 @@ pub mod multisig {
             .transaction
             .signers
             .iter()
-            .filter_map(|s| match s {
-                false => None,
-                true => Some(true),
-            })
-            .collect::<Vec<_>>()
-            .len() as u64;
+            .filter(|&did_sign| *did_sign)
+            .count() as u64;
         if sig_count < ctx.accounts.multisig.threshold {
             return Err(ErrorCode::NotEnoughSigners.into());
         }
