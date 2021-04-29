@@ -5,6 +5,7 @@ use anchor_client::solana_sdk::pubkey::Pubkey;
 use anchor_client::solana_sdk::signature::read_keypair_file;
 use anchor_client::solana_sdk::signature::{Keypair, Signer};
 use anchor_client::solana_sdk::system_instruction;
+use anchor_client::solana_sdk::bpf_loader_upgradeable;
 use anchor_client::solana_sdk::sysvar;
 use anchor_client::{Client, Cluster, Program};
 use clap::Clap;
@@ -26,7 +27,10 @@ struct Opts {
 #[derive(Clap, Debug)]
 enum SubCommand {
     /// Create a new multisig address.
-    CreateMultisig(CreateMultisigOpts)
+    CreateMultisig(CreateMultisigOpts),
+
+    /// Propose replacing a program with that in the given buffer account.
+    ProposeUpgrade(ProposeUpgradeOpts),
 }
 
 #[derive(Clap, Debug)]
@@ -38,6 +42,25 @@ struct CreateMultisigOpts {
     /// The public keys of the multisig owners, who can sign transactions.
     #[clap(long = "owner")]
     owners: Vec<Pubkey>,
+}
+
+#[derive(Clap, Debug)]
+struct ProposeUpgradeOpts {
+    /// The multisig account whose owners should vote for this proposal.
+    #[clap(long)]
+    multisig_address: Pubkey,
+
+    /// The program id of the program to upgrade.
+    #[clap(long)]
+    program_address: Pubkey,
+
+    /// The address that holds the new program data.
+    #[clap(long)]
+    buffer_address: Pubkey,
+
+    /// Account that will receive leftover funds from the buffer account.
+    #[clap(long)]
+    spill_address: Pubkey,
 }
 
 /// Read the keypair from ~/.config/solana/id.json.
@@ -60,7 +83,21 @@ fn main() {
 
     match opts.subcommand {
         SubCommand::CreateMultisig(cmd_opts) => create_multisig(program, cmd_opts),
+        SubCommand::ProposeUpgrade(cmd_opts) => propose_upgrade(program, cmd_opts),
     }
+}
+
+fn get_multisig_program_address(
+    program: &Program,
+    multisig_pubkey: &Pubkey,
+) -> (Pubkey, u8) {
+    let seeds = [
+        multisig_pubkey.as_ref(),
+    ];
+    Pubkey::find_program_address(
+        &seeds,
+        &program.id(),
+    )
 }
 
 fn create_multisig(program: Program, opts: CreateMultisigOpts) {
@@ -90,13 +127,9 @@ fn create_multisig(program: Program, opts: CreateMultisigOpts) {
     // valid, a bump seed is appended to the seeds. It is stored in the `nonce`
     // field in the multisig account, and the Multisig program includes it when
     // deriving its program address.
-    let multisig_pubkey = multisig_account.pubkey();
-    let seeds = [
-        multisig_pubkey.as_ref(),
-    ];
-    let (program_derived_address, nonce) = Pubkey::find_program_address(
-        &seeds,
-        &program.id(),
+    let (program_derived_address, nonce) = get_multisig_program_address(
+        &program,
+        &multisig_account.pubkey(),
     );
     // TODO: The address it prints here, is not equal to the one that the web UI
     // displays ... why not?
@@ -133,6 +166,75 @@ fn create_multisig(program: Program, opts: CreateMultisigOpts) {
             owners: opts.owners,
             threshold: opts.threshold,
             nonce: nonce,
+        })
+        .send()
+        .expect("Failed to send transaction.");
+}
+
+fn propose_upgrade(program: Program, opts: ProposeUpgradeOpts) {
+    let (program_derived_address, _nonce) = get_multisig_program_address(
+        &program,
+        &opts.multisig_address,
+    );
+
+    let upgrade_instruction = bpf_loader_upgradeable::upgrade(
+        &opts.program_address,
+        &opts.buffer_address,
+        // The upgrade authority is the multisig-derived program address.
+        &program_derived_address,
+        &opts.spill_address,
+    );
+
+    // The program expects `multisig::TransactionAccount` instead of
+    // `solana_sdk::AccountMeta`. The types are structurally identical,
+    // but not nominally, so we need to convert these.
+    let accounts: Vec<_> = upgrade_instruction
+        .accounts
+        .iter()
+        .map(multisig::TransactionAccount::from)
+        .collect();
+
+    // The transaction is stored by the Multisig program in yet another account,
+    // that we create just for this transaction.
+    // TODO: Should we save the private key, to allow deleting the multisig
+    // account in order to recover the funds?
+    let transaction_account = Keypair::generate(&mut OsRng);
+    println!("Transaction account: {}", transaction_account.pubkey());
+
+    program
+        .request()
+        // Create the program-owned account that will hold the transaction data,
+        // and fund it from the payer account to make it rent-exempt.
+        .instruction(system_instruction::create_account(
+            &program.payer(),
+            &transaction_account.pubkey(),
+            // TODO: Is there a good way to determine the size of the
+            // transaction; can we serialize and measure maybe? For now, assume
+            // 500 bytes will be sufficient.
+            // TODO: Ask for confirmation from the user first before funding the
+            // account.
+            program
+                .rpc()
+                .get_minimum_balance_for_rent_exemption(500)
+                .expect("Failed to obtain minimum rent-exempt balance."),
+            500,
+            &program.id(),
+        ))
+        // Creating the account must be signed by the account itself.
+        .signer(&transaction_account)
+        .accounts(multisig_accounts::CreateTransaction {
+            multisig: opts.multisig_address,
+            transaction: transaction_account.pubkey(),
+            // For convenience, assume that the party that signs the proposal
+            // transaction is a member of the multisig owners, and use it as the
+            // proposer.
+            proposer: program.payer(),
+            rent: sysvar::rent::ID,
+        })
+        .args(multisig_instruction::CreateTransaction {
+            pid: upgrade_instruction.program_id,
+            accs: accounts,
+            data: upgrade_instruction.data,
         })
         .send()
         .expect("Failed to send transaction.");

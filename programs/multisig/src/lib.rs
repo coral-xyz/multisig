@@ -253,9 +253,9 @@ impl From<&Transaction> for Instruction {
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct TransactionAccount {
-    pubkey: Pubkey,
-    is_signer: bool,
-    is_writable: bool,
+    pub pubkey: Pubkey,
+    pub is_signer: bool,
+    pub is_writable: bool,
 }
 
 impl From<TransactionAccount> for AccountMeta {
@@ -263,6 +263,16 @@ impl From<TransactionAccount> for AccountMeta {
         match account.is_writable {
             false => AccountMeta::new_readonly(account.pubkey, account.is_signer),
             true => AccountMeta::new(account.pubkey, account.is_signer),
+        }
+    }
+}
+
+impl From<&AccountMeta> for TransactionAccount {
+    fn from(account_meta: &AccountMeta) -> TransactionAccount {
+        TransactionAccount {
+            pubkey: account_meta.pubkey,
+            is_signer: account_meta.is_signer,
+            is_writable: account_meta.is_writable,
         }
     }
 }
