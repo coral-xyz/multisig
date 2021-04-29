@@ -36,6 +36,7 @@ struct CreateMultisigOpts {
     threshold: u64,
 
     /// The public keys of the multisig owners, who can sign transactions.
+    #[clap(long = "owner")]
     owners: Vec<Pubkey>,
 }
 
@@ -67,6 +68,10 @@ fn create_multisig(program: Program, opts: CreateMultisigOpts) {
         println!("Threshold must be at most the number of owners.");
         std::process::exit(1);
     }
+    if opts.threshold == 0 {
+        println!("Threshold must be at least 1.");
+        std::process::exit(1);
+    }
 
     // Before we can make the Multisig program initialize a new multisig
     // account, we need to have a program-owned account to used for that.
@@ -78,6 +83,27 @@ fn create_multisig(program: Program, opts: CreateMultisigOpts) {
     let multisig_account = Keypair::generate(&mut OsRng);
 
     println!("Multisig account: {}", multisig_account.pubkey());
+
+    // The Multisig program will sign transactions on behalf of a derived
+    // account. Print this derived account, so it can be used to set as e.g.
+    // the upgrade authority for a program. Because not every derived address is
+    // valid, a bump seed is appended to the seeds. It is stored in the `nonce`
+    // field in the multisig account, and the Multisig program includes it when
+    // deriving its program address.
+    let multisig_pubkey = multisig_account.pubkey();
+    let seeds = [
+        multisig_pubkey.as_ref(),
+    ];
+    let (program_derived_address, nonce) = Pubkey::find_program_address(
+        &seeds,
+        &program.id(),
+    );
+    // TODO: The address it prints here, is not equal to the one that the web UI
+    // displays ... why not?
+    println!(
+        "Program derived address (use as upgrade authority): {}",
+        program_derived_address,
+    );
 
     program
         .request()
@@ -106,7 +132,7 @@ fn create_multisig(program: Program, opts: CreateMultisigOpts) {
         .args(multisig_instruction::CreateMultisig {
             owners: opts.owners,
             threshold: opts.threshold,
-            nonce: 0,
+            nonce: nonce,
         })
         .send()
         .expect("Failed to send transaction.");
