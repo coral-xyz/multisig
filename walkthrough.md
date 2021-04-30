@@ -235,6 +235,7 @@ Addresses so far:
 | `CJT35QVW8tx6uR4dnKv1LqNJ7yMfErMPtNje7wnFBJTe` | Multisig account with 3 owners                |
 | `4D3FRYq2kJSkyKcgW7Jju4nZXup9sQjHXqDbfPMTJpQr` | Program account for above multisig            |
 | `ZkopsoMNCqrZhh6XBG1KgadtdH61ggXxyPdjLASpDUC`  | Hello program id                              |
+| `8SysU2FxZTqcBjvXJBqpsBJNVC1KASBP8na6eQqZnaZd` | Buffer that holds the new hello program       |
 | `4XuKxb9pVUcyzBHorXXgVQDBv7JCMEXHnmmJNqGnhouk` | Multisig transaction to upgrade hello program |
 
 ## Signing a transaction
@@ -271,4 +272,14 @@ configuration, so let’s do that next.
 
 ## Executing a transaction
 
-*To be written.*
+Once enough approvals are present, anybody can execute the transaction:
+
+```console
+$ multisig \
+  --multisig-program-id 9upUTzo5v4voWarUtMiBbs8XCFpEBM1t34RwGch55CMA \
+  execute-transaction \
+  --multisig-address CJT35QVW8tx6uR4dnKv1LqNJ7yMfErMPtNje7wnFBJTe \
+  --transaction-address 4XuKxb9pVUcyzBHorXXgVQDBv7JCMEXHnmmJNqGnhouk
+```
+
+WUT H3E6BVr7EoZMp3phw9ioMCW9etsav8MF3ZPqf9zQURgT

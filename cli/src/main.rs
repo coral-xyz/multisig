@@ -45,6 +45,9 @@ enum SubCommand {
 
     /// Approve a proposed transaction.
     Approve(ApproveOpts),
+
+    /// Execute a transaction that has enough approvals.
+    ExecuteTransaction(ExecuteTransactionOpts),
 }
 
 #[derive(Clap, Debug)]
@@ -103,6 +106,18 @@ struct ApproveOpts {
     transaction_address: Pubkey,
 }
 
+#[derive(Clap, Debug)]
+struct ExecuteTransactionOpts {
+    /// The multisig account whose owners approved this transaction.
+    // TODO: Can be omitted, we can obtain it from the transaction account.
+    #[clap(long)]
+    multisig_address: Pubkey,
+
+    /// The transaction to execute.
+    #[clap(long)]
+    transaction_address: Pubkey,
+}
+
 /// Resolve ~/.config/solana/id.json.
 fn get_default_keypair_path() -> PathBuf {
     let home = std::env::var("HOME").expect("Expected $HOME to be set.");
@@ -133,6 +148,7 @@ fn main() {
         SubCommand::ShowTransaction(cmd_opts) => show_transaction(program, cmd_opts),
         SubCommand::ProposeUpgrade(cmd_opts) => propose_upgrade(program, cmd_opts),
         SubCommand::Approve(cmd_opts) => approve(program, cmd_opts),
+        SubCommand::ExecuteTransaction(cmd_opts) => execute_transaction(program, cmd_opts),
     }
 }
 
@@ -370,6 +386,24 @@ fn approve(program: Program, opts: ApproveOpts) {
             owner: program.payer(),
         })
         .args(multisig_instruction::Approve)
+        .send()
+        .expect("Failed to send transaction.");
+}
+
+fn execute_transaction(program: Program, opts: ExecuteTransactionOpts) {
+    let (program_derived_address, _nonce) = get_multisig_program_address(
+        &program,
+        &opts.multisig_address,
+    );
+
+    program
+        .request()
+        .accounts(multisig_accounts::ExecuteTransaction {
+            multisig: opts.multisig_address,
+            multisig_signer: program_derived_address,
+            transaction: opts.transaction_address,
+        })
+        .args(multisig_instruction::ExecuteTransaction)
         .send()
         .expect("Failed to send transaction.");
 }
