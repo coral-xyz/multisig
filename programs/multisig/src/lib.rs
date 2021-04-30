@@ -217,28 +217,28 @@ pub struct ExecuteTransaction<'info> {
 
 #[account]
 pub struct Multisig {
-    owners: Vec<Pubkey>,
-    threshold: u64,
-    nonce: u8,
-    owner_set_seqno: u32,
+    pub owners: Vec<Pubkey>,
+    pub threshold: u64,
+    pub nonce: u8,
+    pub owner_set_seqno: u32,
 }
 
 #[account]
 pub struct Transaction {
     // The multisig account this transaction belongs to.
-    multisig: Pubkey,
+    pub multisig: Pubkey,
     // Target program to execute against.
-    program_id: Pubkey,
+    pub program_id: Pubkey,
     // Accounts requried for the transaction.
-    accounts: Vec<TransactionAccount>,
+    pub accounts: Vec<TransactionAccount>,
     // Instruction data for the transaction.
-    data: Vec<u8>,
+    pub data: Vec<u8>,
     // signers[index] is true iff multisig.owners[index] signed the transaction.
-    signers: Vec<bool>,
+    pub signers: Vec<bool>,
     // Boolean ensuring one time execution.
-    did_execute: bool,
+    pub did_execute: bool,
     // Owner set sequence number.
-    owner_set_seqno: u32,
+    pub owner_set_seqno: u32,
 }
 
 impl From<&Transaction> for Instruction {
