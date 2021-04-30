@@ -29,6 +29,9 @@ enum SubCommand {
     /// Create a new multisig address.
     CreateMultisig(CreateMultisigOpts),
 
+    /// Show the owners and threshold of the given multisig.
+    ShowMultisig(ShowMultisigOpts),
+
     /// Propose replacing a program with that in the given buffer account.
     ProposeUpgrade(ProposeUpgradeOpts),
 
@@ -67,6 +70,13 @@ struct ProposeUpgradeOpts {
 }
 
 #[derive(Clap, Debug)]
+struct ShowMultisigOpts {
+    /// The multisig account to display.
+    #[clap(long)]
+    multisig_address: Pubkey,
+}
+
+#[derive(Clap, Debug)]
 struct ApproveOpts {
     /// The multisig account whose owners should vote for this proposal.
     #[clap(long)]
@@ -97,6 +107,7 @@ fn main() {
 
     match opts.subcommand {
         SubCommand::CreateMultisig(cmd_opts) => create_multisig(program, cmd_opts),
+        SubCommand::ShowMultisig(cmd_opts) => show_multisig(program, cmd_opts),
         SubCommand::ProposeUpgrade(cmd_opts) => propose_upgrade(program, cmd_opts),
         SubCommand::Approve(cmd_opts) => approve(program, cmd_opts),
     }
@@ -184,6 +195,18 @@ fn create_multisig(program: Program, opts: CreateMultisigOpts) {
         })
         .send()
         .expect("Failed to send transaction.");
+}
+
+fn show_multisig(program: Program, opts: ShowMultisigOpts) {
+    let multisig: multisig::Multisig = program
+        .account(opts.multisig_address)
+        .expect("Failed to read multisig state from account.");
+
+    println!("Threshold: {} out of {}", multisig.threshold, multisig.owners.len());
+    println!("Owners:");
+    for owner_pubkey in &multisig.owners {
+        println!("  {}", owner_pubkey);
+    }
 }
 
 fn propose_upgrade(program: Program, opts: ProposeUpgradeOpts) {
