@@ -31,6 +31,9 @@ enum SubCommand {
 
     /// Propose replacing a program with that in the given buffer account.
     ProposeUpgrade(ProposeUpgradeOpts),
+
+    /// Approve a proposed transaction.
+    Approve(ApproveOpts),
 }
 
 #[derive(Clap, Debug)]
@@ -63,6 +66,17 @@ struct ProposeUpgradeOpts {
     spill_address: Pubkey,
 }
 
+#[derive(Clap, Debug)]
+struct ApproveOpts {
+    /// The multisig account whose owners should vote for this proposal.
+    #[clap(long)]
+    multisig_address: Pubkey,
+
+    /// The transaction to approve.
+    #[clap(long)]
+    transaction_address: Pubkey,
+}
+
 /// Read the keypair from ~/.config/solana/id.json.
 fn get_user_keypair() -> Keypair {
     let home = std::env::var("HOME").expect("Expected $HOME to be set.");
@@ -84,6 +98,7 @@ fn main() {
     match opts.subcommand {
         SubCommand::CreateMultisig(cmd_opts) => create_multisig(program, cmd_opts),
         SubCommand::ProposeUpgrade(cmd_opts) => propose_upgrade(program, cmd_opts),
+        SubCommand::Approve(cmd_opts) => approve(program, cmd_opts),
     }
 }
 
@@ -236,6 +251,22 @@ fn propose_upgrade(program: Program, opts: ProposeUpgradeOpts) {
             accs: accounts,
             data: upgrade_instruction.data,
         })
+        .send()
+        .expect("Failed to send transaction.");
+}
+
+fn approve(program: Program, opts: ApproveOpts) {
+    program
+        .request()
+        .accounts(multisig_accounts::Approve {
+            multisig: opts.multisig_address,
+            transaction: opts.transaction_address,
+            // The owner that signs the multisig proposed transaction, should be
+            // the public key that signs the entire approval transaction (which
+            // is also the payer).
+            owner: program.payer(),
+        })
+        .args(multisig_instruction::Approve)
         .send()
         .expect("Failed to send transaction.");
 }
