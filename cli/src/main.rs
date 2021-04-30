@@ -1,11 +1,12 @@
 use std::path::PathBuf;
 
+use anchor_client::solana_sdk::bpf_loader_upgradeable;
 use anchor_client::solana_sdk::commitment_config::CommitmentConfig;
+use anchor_client::solana_sdk::instruction::Instruction;
 use anchor_client::solana_sdk::pubkey::Pubkey;
 use anchor_client::solana_sdk::signature::read_keypair_file;
 use anchor_client::solana_sdk::signature::{Keypair, Signer};
 use anchor_client::solana_sdk::system_instruction;
-use anchor_client::solana_sdk::bpf_loader_upgradeable;
 use anchor_client::solana_sdk::sysvar;
 use anchor_client::{Client, Cluster, Program};
 use clap::Clap;
@@ -238,8 +239,8 @@ fn show_transaction(program: Program, opts: ShowTransactionOpts) {
         .expect("Failed to read multisig state from account.");
 
     if transaction.owner_set_seqno == multisig.owner_set_seqno {
-        println!("Signers:");
-        for (owner_pubkey, did_sign) in multisig.owners.iter().zip(transaction.signers) {
+        println!("\nSigners:");
+        for (owner_pubkey, &did_sign) in multisig.owners.iter().zip(&transaction.signers) {
             println!("  [{}] {}", if did_sign { 'x' } else { ' ' }, owner_pubkey);
         }
     } else {
@@ -253,7 +254,24 @@ fn show_transaction(program: Program, opts: ShowTransactionOpts) {
         println!("It had {} out of {} signatures.", num_signatures, transaction.signers.len());
     }
 
-    // TODO: Print transaction details.
+    let instr = Instruction::from(&transaction);
+
+    println!("\nInstruction:");
+    println!("  Program to call:         {}", instr.program_id);
+
+    if
+        instr.program_id == bpf_loader_upgradeable::ID
+        && bpf_loader_upgradeable::is_upgrade_instruction(&instr.data[..])
+    {
+        // Account meaning, according to
+        // https://docs.rs/solana-sdk/1.5.19/solana_sdk/loader_upgradeable_instruction/enum.UpgradeableLoaderInstruction.html#variant.Upgrade
+        println!("\n  This is a bpf_loader_upgradeable upgrade instruction.");
+        println!("  Program to upgrade:      {}", instr.accounts[1].pubkey);
+        println!("  Buffer with new program: {}", instr.accounts[2].pubkey);
+        println!("  Spill address:           {}", instr.accounts[3].pubkey);
+    } else {
+        println!("  Unrecognized instruction.");
+    }
 }
 
 fn propose_upgrade(program: Program, opts: ProposeUpgradeOpts) {
