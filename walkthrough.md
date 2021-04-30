@@ -18,8 +18,8 @@ Deploy success
 ```
 
 We will be using `~/.config/solana/id.json` as one of the owners of the
-multisig, and generate two additional owners here. For a real deploy, others
-owners would already have a key.
+multisig, and generate two additional owners here for demonstration purposes.
+For a real setup, other owners would already have their keys.
 
 ```console
 $ solana-keygen new --outfile k2.json
@@ -49,12 +49,12 @@ G1mys98VJUjxvnaeZU1XYM5KSpC6DVAGEF2zStWbF1Bv
 
 Let’s recap the addresses involved so far:
 
-| Description      | Address                                        | Keypair file               |
-|------------------|------------------------------------------------|----------------------------|
-| Owner 1          | `G1mys98VJUjxvnaeZU1XYM5KSpC6DVAGEF2zStWbF1Bv` | `~/.config/solana/id.json` |
-| Owner 2          | `ATsi5EkETN8jMzsJ84cgUwVhjrf1KDcU4uABZ7EQbkUB` | `k2.json`                  |
-| Owner 3          | `EHkTBThp6SxifEKJnwuFiWJFnb2iStc7u1WJpQ2Zg91Q` | `k3.json`                  |
-| Multisig program | `9upUTzo5v4voWarUtMiBbs8XCFpEBM1t34RwGch55CMA` |                            |
+| Address                                        | Note                                 |
+|------------------------------------------------|--------------------------------------|
+| `G1mys98VJUjxvnaeZU1XYM5KSpC6DVAGEF2zStWbF1Bv` | Owner 1 (`~/.config/solana/id.json`) |
+| `ATsi5EkETN8jMzsJ84cgUwVhjrf1KDcU4uABZ7EQbkUB` | Owner 2 (`k2.json`)                  |
+| `EHkTBThp6SxifEKJnwuFiWJFnb2iStc7u1WJpQ2Zg91Q` | Owner 3 (`k3.json`)                  |
+| `9upUTzo5v4voWarUtMiBbs8XCFpEBM1t34RwGch55CMA` | Multisig program id                  |
 
 ## Setting up a multisig
 
@@ -83,9 +83,156 @@ $ multisig
   show-multisig \
   --multisig-address CJT35QVW8tx6uR4dnKv1LqNJ7yMfErMPtNje7wnFBJTe
 
+Program derived address: 4D3FRYq2kJSkyKcgW7Jju4nZXup9sQjHXqDbfPMTJpQr
 Threshold: 2 out of 3
 Owners:
   G1mys98VJUjxvnaeZU1XYM5KSpC6DVAGEF2zStWbF1Bv
   ATsi5EkETN8jMzsJ84cgUwVhjrf1KDcU4uABZ7EQbkUB
   EHkTBThp6SxifEKJnwuFiWJFnb2iStc7u1WJpQ2Zg91Q
 ```
+
+The program derived address is the address that the multisig can sign with.
+Anything to be approved by the multisig should use this address as the
+authority.
+
+Let’s recap the addresses involved so far:
+
+| Address                                        | Note                                 |
+|------------------------------------------------|--------------------------------------|
+| `G1mys98VJUjxvnaeZU1XYM5KSpC6DVAGEF2zStWbF1Bv` | Owner 1 (`~/.config/solana/id.json`) |
+| `ATsi5EkETN8jMzsJ84cgUwVhjrf1KDcU4uABZ7EQbkUB` | Owner 2 (`k2.json`)                  |
+| `EHkTBThp6SxifEKJnwuFiWJFnb2iStc7u1WJpQ2Zg91Q` | Owner 3 (`k3.json`)                  |
+| `9upUTzo5v4voWarUtMiBbs8XCFpEBM1t34RwGch55CMA` | Multisig program id                  |
+| `CJT35QVW8tx6uR4dnKv1LqNJ7yMfErMPtNje7wnFBJTe` | Multisig account with 3 owners       |
+| `4D3FRYq2kJSkyKcgW7Jju4nZXup9sQjHXqDbfPMTJpQr` | Program account for above multisig   |
+
+## Deploying an upgradeable program
+
+We will deploy the [example-helloworld][hello] program, and upgrade it with the
+multisig later. With the example built, deploy it:
+
+```console
+$ solana program deploy target/deploy/helloworld.so
+Program Id: ZkopsoMNCqrZhh6XBG1KgadtdH61ggXxyPdjLASpDUC
+```
+
+Currently we (owner 1, `~./config/solana/id.json`) are the upgrade authority.
+The program was padded with zeros to a length of 123712 bytes:
+
+```console
+$ solana program show ZkopsoMNCqrZhh6XBG1KgadtdH61ggXxyPdjLASpDUC
+
+Program Id: ZkopsoMNCqrZhh6XBG1KgadtdH61ggXxyPdjLASpDUC
+Owner: BPFLoaderUpgradeab1e11111111111111111111111
+ProgramData Address: H3E6BVr7EoZMp3phw9ioMCW9etsav8MF3ZPqf9zQURgT
+Authority: G1mys98VJUjxvnaeZU1XYM5KSpC6DVAGEF2zStWbF1Bv
+Last Deployed In Slot: 103219
+Data Length: 123712 (0x1e340) bytes
+```
+
+Confirm that the program is what we intended to deploy. We pad the local program
+with zeros too, to be able to compare the files:
+
+```console
+$ solana program dump ZkopsoMNCqrZhh6XBG1KgadtdH61ggXxyPdjLASpDUC onchain-1.so
+$ truncate --size 123712 target/deploy/helloworld.so
+$ sha256sum onchain-1.so target/deploy/helloworld.so
+306400cfd76b581f93e1dcf8953edb63867dbda6a775c7d831b9562f3ab91fa3  onchain-1.so
+306400cfd76b581f93e1dcf8953edb63867dbda6a775c7d831b9562f3ab91fa3  target/deploy/helloworld.so
+```
+
+Change the upgrade authority to the multisig program derived account:
+
+```console
+solana program \
+  set-upgrade-authority ZkopsoMNCqrZhh6XBG1KgadtdH61ggXxyPdjLASpDUC \
+  --new-upgrade-authority 4D3FRYq2kJSkyKcgW7Jju4nZXup9sQjHXqDbfPMTJpQr
+```
+
+[hello]: https://github.com/solana-labs/example-helloworld
+
+Let’s recap the addresses so far:
+
+| Address                                        | Note                                 |
+|------------------------------------------------|--------------------------------------|
+| `G1mys98VJUjxvnaeZU1XYM5KSpC6DVAGEF2zStWbF1Bv` | Owner 1 (`~/.config/solana/id.json`) |
+| `ATsi5EkETN8jMzsJ84cgUwVhjrf1KDcU4uABZ7EQbkUB` | Owner 2 (`k2.json`)                  |
+| `EHkTBThp6SxifEKJnwuFiWJFnb2iStc7u1WJpQ2Zg91Q` | Owner 3 (`k3.json`)                  |
+| `9upUTzo5v4voWarUtMiBbs8XCFpEBM1t34RwGch55CMA` | Multisig program id                  |
+| `CJT35QVW8tx6uR4dnKv1LqNJ7yMfErMPtNje7wnFBJTe` | Multisig account with 3 owners       |
+| `4D3FRYq2kJSkyKcgW7Jju4nZXup9sQjHXqDbfPMTJpQr` | Program account for above multisig   |
+| `ZkopsoMNCqrZhh6XBG1KgadtdH61ggXxyPdjLASpDUC`  | Hello program id                     |
+
+## Proposing an upgrade
+
+Suppose we have a new version of the program (for example, by changing the
+counter increment in hello-world to a decrement). To upgrade the program,
+normally we first upload it to a buffer account, and then call `upgrade` on the
+BPF upgradable loader. Let’s try that now:
+
+```console
+$ solana program write-buffer target/deploy/helloworld2.so
+Buffer: 8SysU2FxZTqcBjvXJBqpsBJNVC1KASBP8na6eQqZnaZd
+
+$ solana program deploy \
+  --buffer 8SysU2FxZTqcBjvXJBqpsBJNVC1KASBP8na6eQqZnaZd \
+  --program-id ZkopsoMNCqrZhh6XBG1KgadtdH61ggXxyPdjLASpDUC
+
+Error: Program's authority Some(4D3FRYq2kJSkyKcgW7Jju4nZXup9sQjHXqDbfPMTJpQr)
+does not match authority provided G1mys98VJUjxvnaeZU1XYM5KSpC6DVAGEF2zStWbF1Bv
+```
+
+As expected, we can no longer upgrade the program; only the multisig program
+account can do that now. So propose this upgrade to the multisig instead. We set
+the spill address to the account that created the buffer, so it can recover its
+funds.
+
+```console
+$ multisig
+  --multisig-program-id 9upUTzo5v4voWarUtMiBbs8XCFpEBM1t34RwGch55CMA \
+  propose-upgrade \
+  --multisig-address CJT35QVW8tx6uR4dnKv1LqNJ7yMfErMPtNje7wnFBJTe \
+  --buffer-address 8SysU2FxZTqcBjvXJBqpsBJNVC1KASBP8na6eQqZnaZd \
+  --program-address ZkopsoMNCqrZhh6XBG1KgadtdH61ggXxyPdjLASpDUC \
+  --spill-address G1mys98VJUjxvnaeZU1XYM5KSpC6DVAGEF2zStWbF1Bv
+
+Transaction account: 4XuKxb9pVUcyzBHorXXgVQDBv7JCMEXHnmmJNqGnhouk
+```
+
+This created a new multisig transaction, which is automatically signed by its
+creator:
+
+```console
+$ multisig
+  --multisig-program-id 9upUTzo5v4voWarUtMiBbs8XCFpEBM1t34RwGch55CMA \
+  show-transaction \
+  --transaction-address 4XuKxb9pVUcyzBHorXXgVQDBv7JCMEXHnmmJNqGnhouk
+
+Multisig: CJT35QVW8tx6uR4dnKv1LqNJ7yMfErMPtNje7wnFBJTe
+Did execute: false
+
+Signers:
+  [x] G1mys98VJUjxvnaeZU1XYM5KSpC6DVAGEF2zStWbF1Bv
+  [ ] ATsi5EkETN8jMzsJ84cgUwVhjrf1KDcU4uABZ7EQbkUB
+  [ ] EHkTBThp6SxifEKJnwuFiWJFnb2iStc7u1WJpQ2Zg91Q
+
+Instruction:
+  Program to call:         BPFLoaderUpgradeab1e11111111111111111111111
+  This is a bpf_loader_upgradeable upgrade instruction.
+  Program to upgrade:      ZkopsoMNCqrZhh6XBG1KgadtdH61ggXxyPdjLASpDUC
+  Buffer with new program: 8SysU2FxZTqcBjvXJBqpsBJNVC1KASBP8na6eQqZnaZd
+  Spill address:           G1mys98VJUjxvnaeZU1XYM5KSpC6DVAGEF2zStWbF1Bv
+```
+
+Addresses so far:
+
+| Address                                        | Note                                          |
+|------------------------------------------------|-----------------------------------------------|
+| `G1mys98VJUjxvnaeZU1XYM5KSpC6DVAGEF2zStWbF1Bv` | Owner 1 (`~/.config/solana/id.json`)          |
+| `ATsi5EkETN8jMzsJ84cgUwVhjrf1KDcU4uABZ7EQbkUB` | Owner 2 (`k2.json`)                           |
+| `EHkTBThp6SxifEKJnwuFiWJFnb2iStc7u1WJpQ2Zg91Q` | Owner 3 (`k3.json`)                           |
+| `9upUTzo5v4voWarUtMiBbs8XCFpEBM1t34RwGch55CMA` | Multisig program id                           |
+| `CJT35QVW8tx6uR4dnKv1LqNJ7yMfErMPtNje7wnFBJTe` | Multisig account with 3 owners                |
+| `4D3FRYq2kJSkyKcgW7Jju4nZXup9sQjHXqDbfPMTJpQr` | Program account for above multisig            |
+| `ZkopsoMNCqrZhh6XBG1KgadtdH61ggXxyPdjLASpDUC`  | Hello program id                              |
+| `4XuKxb9pVUcyzBHorXXgVQDBv7JCMEXHnmmJNqGnhouk` | Multisig transaction to upgrade hello program |

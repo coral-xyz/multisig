@@ -225,6 +225,11 @@ fn show_multisig(program: Program, opts: ShowMultisigOpts) {
         .account(opts.multisig_address)
         .expect("Failed to read multisig state from account.");
 
+    let (program_derived_address, _nonce) = get_multisig_program_address(
+        &program,
+        &opts.multisig_address,
+    );
+    println!("Program derived address: {}", program_derived_address);
     println!("Threshold: {} out of {}", multisig.threshold, multisig.owners.len());
     println!("Owners:");
     for owner_pubkey in &multisig.owners {
@@ -275,7 +280,7 @@ fn show_transaction(program: Program, opts: ShowTransactionOpts) {
     {
         // Account meaning, according to
         // https://docs.rs/solana-sdk/1.5.19/solana_sdk/loader_upgradeable_instruction/enum.UpgradeableLoaderInstruction.html#variant.Upgrade
-        println!("\n  This is a bpf_loader_upgradeable upgrade instruction.");
+        println!("  This is a bpf_loader_upgradeable upgrade instruction.");
         println!("  Program to upgrade:      {}", instr.accounts[1].pubkey);
         println!("  Buffer with new program: {}", instr.accounts[2].pubkey);
         println!("  Spill address:           {}", instr.accounts[3].pubkey);
