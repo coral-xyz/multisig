@@ -32,6 +32,9 @@ enum SubCommand {
     /// Show the owners and threshold of the given multisig.
     ShowMultisig(ShowMultisigOpts),
 
+    /// Show the details of a transaction.
+    ShowTransaction(ShowTransactionOpts),
+
     /// Propose replacing a program with that in the given buffer account.
     ProposeUpgrade(ProposeUpgradeOpts),
 
@@ -77,8 +80,16 @@ struct ShowMultisigOpts {
 }
 
 #[derive(Clap, Debug)]
+struct ShowTransactionOpts {
+    /// The transaction to display.
+    #[clap(long)]
+    transaction_address: Pubkey,
+}
+
+#[derive(Clap, Debug)]
 struct ApproveOpts {
     /// The multisig account whose owners should vote for this proposal.
+    // TODO: Can be omitted, we can obtain it from the transaction account.
     #[clap(long)]
     multisig_address: Pubkey,
 
@@ -108,6 +119,7 @@ fn main() {
     match opts.subcommand {
         SubCommand::CreateMultisig(cmd_opts) => create_multisig(program, cmd_opts),
         SubCommand::ShowMultisig(cmd_opts) => show_multisig(program, cmd_opts),
+        SubCommand::ShowTransaction(cmd_opts) => show_transaction(program, cmd_opts),
         SubCommand::ProposeUpgrade(cmd_opts) => propose_upgrade(program, cmd_opts),
         SubCommand::Approve(cmd_opts) => approve(program, cmd_opts),
     }
@@ -207,6 +219,41 @@ fn show_multisig(program: Program, opts: ShowMultisigOpts) {
     for owner_pubkey in &multisig.owners {
         println!("  {}", owner_pubkey);
     }
+}
+
+fn show_transaction(program: Program, opts: ShowTransactionOpts) {
+    let transaction: multisig::Transaction = program
+        .account(opts.transaction_address)
+        .expect("Failed to read transaction data from account.");
+
+    println!("Multisig: {}", transaction.multisig);
+    println!("Did execute: {}", transaction.did_execute);
+
+    // Also query the multisig, to get the owner public keys, so we can display
+    // exactly who voted.
+    // TODO: Is there a way to make the client query from the same block, so
+    // that we are sure that we get a consistent view of the data?
+    let multisig: multisig::Multisig = program
+        .account(transaction.multisig)
+        .expect("Failed to read multisig state from account.");
+
+    if transaction.owner_set_seqno == multisig.owner_set_seqno {
+        println!("Signers:");
+        for (owner_pubkey, did_sign) in multisig.owners.iter().zip(transaction.signers) {
+            println!("  [{}] {}", if did_sign { 'x' } else { ' ' }, owner_pubkey);
+        }
+    } else {
+        println!("The owners of the multisig have changed since this transaction was created,");
+        println!("therefore we cannot show the identities of the signers.");
+        let num_signatures = transaction
+            .signers
+            .iter()
+            .filter(|&did_sign| *did_sign)
+            .count();
+        println!("It had {} out of {} signatures.", num_signatures, transaction.signers.len());
+    }
+
+    // TODO: Print transaction details.
 }
 
 fn propose_upgrade(program: Program, opts: ProposeUpgradeOpts) {
