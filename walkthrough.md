@@ -236,3 +236,39 @@ Addresses so far:
 | `4D3FRYq2kJSkyKcgW7Jju4nZXup9sQjHXqDbfPMTJpQr` | Program account for above multisig            |
 | `ZkopsoMNCqrZhh6XBG1KgadtdH61ggXxyPdjLASpDUC`  | Hello program id                              |
 | `4XuKxb9pVUcyzBHorXXgVQDBv7JCMEXHnmmJNqGnhouk` | Multisig transaction to upgrade hello program |
+
+## Signing a transaction
+
+Now that transaction `4XuKxb9pVUcyzBHorXXgVQDBv7JCMEXHnmmJNqGnhouk` exists, the
+other owners can approve it with their keypairs:
+
+```console
+$ multisig \
+  --multisig-program-id 9upUTzo5v4voWarUtMiBbs8XCFpEBM1t34RwGch55CMA \
+  --keypair-path k2.json \
+  approve \
+  --multisig-address CJT35QVW8tx6uR4dnKv1LqNJ7yMfErMPtNje7wnFBJTe \
+  --transaction-address 4XuKxb9pVUcyzBHorXXgVQDBv7JCMEXHnmmJNqGnhouk
+
+$ multisig \
+  --multisig-program-id 9upUTzo5v4voWarUtMiBbs8XCFpEBM1t34RwGch55CMA \
+  show-transaction \
+  --transaction-address 4XuKxb9pVUcyzBHorXXgVQDBv7JCMEXHnmmJNqGnhouk
+
+Multisig: CJT35QVW8tx6uR4dnKv1LqNJ7yMfErMPtNje7wnFBJTe
+Did execute: false
+
+Signers:
+  [x] G1mys98VJUjxvnaeZU1XYM5KSpC6DVAGEF2zStWbF1Bv
+  [x] ATsi5EkETN8jMzsJ84cgUwVhjrf1KDcU4uABZ7EQbkUB
+  [ ] EHkTBThp6SxifEKJnwuFiWJFnb2iStc7u1WJpQ2Zg91Q
+
+...
+```
+
+Two out of three signatures is enough to execute the transaction with our
+configuration, so let’s do that next.
+
+## Executing a transaction
+
+*To be written.*
