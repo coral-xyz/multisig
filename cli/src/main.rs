@@ -21,6 +21,10 @@ struct Opts {
     #[clap(long)]
     multisig_program_id: Pubkey,
 
+    /// The keypair to sign and pay with. Defaults to ~/.config/solana/id.json.
+    #[clap(long)]
+    keypair_path: Option<PathBuf>,
+
     #[clap(subcommand)]
     subcommand: SubCommand
 }
@@ -99,17 +103,23 @@ struct ApproveOpts {
     transaction_address: Pubkey,
 }
 
-/// Read the keypair from ~/.config/solana/id.json.
-fn get_user_keypair() -> Keypair {
+/// Resolve ~/.config/solana/id.json.
+fn get_default_keypair_path() -> PathBuf {
     let home = std::env::var("HOME").expect("Expected $HOME to be set.");
     let mut path = PathBuf::from(home);
     path.push(".config/solana/id.json");
-    read_keypair_file(path).expect("Expected key pair at ~/.config/solana/id.json.")
+    path
 }
 
 fn main() {
     let opts = Opts::parse();
-    let payer = get_user_keypair();
+    let payer_keypair_path = match opts.keypair_path {
+        Some(path) => path,
+        None => get_default_keypair_path(),
+    };
+    let payer = read_keypair_file(&payer_keypair_path)
+        .expect(&format!("Failed to read key pair from {:?}.", payer_keypair_path));
+
     let client = Client::new_with_options(
         Cluster::Localnet,
         payer,
