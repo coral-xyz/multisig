@@ -88,6 +88,19 @@ pub mod multisig {
         Ok(())
     }
 
+    // Set owners and threshold at once.
+    pub fn set_owners_and_change_threshold<'info>(
+        ctx: Context<'_, '_, '_, 'info, Auth<'info>>,
+        owners: Vec<Pubkey>,
+        threshold: u64,
+    ) -> Result<()> {
+        set_owners(
+            Context::new(ctx.program_id, ctx.accounts, ctx.remaining_accounts),
+            owners,
+        )?;
+        change_threshold(ctx, threshold)
+    }
+
     // Sets the owners field on the multisig. The only way this can be invoked
     // is via a recursive call from execute_transaction -> set_owners.
     pub fn set_owners(ctx: Context<Auth>, owners: Vec<Pubkey>) -> Result<()> {
