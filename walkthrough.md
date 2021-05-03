@@ -174,6 +174,12 @@ BPF upgradable loader. Let’s try that now:
 $ solana program write-buffer target/deploy/helloworld2.so
 Buffer: 8SysU2FxZTqcBjvXJBqpsBJNVC1KASBP8na6eQqZnaZd
 
+# According to the Solana docs, the buffer authority of the buffer should match
+# the upgrade authority of the program.
+$ solana program set-buffer-authority \
+  8SysU2FxZTqcBjvXJBqpsBJNVC1KASBP8na6eQqZnaZd \
+  --new-buffer-authority 4D3FRYq2kJSkyKcgW7Jju4nZXup9sQjHXqDbfPMTJpQr
+
 $ solana program deploy \
   --buffer 8SysU2FxZTqcBjvXJBqpsBJNVC1KASBP8na6eQqZnaZd \
   --program-id ZkopsoMNCqrZhh6XBG1KgadtdH61ggXxyPdjLASpDUC
