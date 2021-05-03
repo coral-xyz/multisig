@@ -245,7 +245,7 @@ impl From<&Transaction> for Instruction {
     fn from(tx: &Transaction) -> Instruction {
         Instruction {
             program_id: tx.program_id,
-            accounts: tx.accounts.clone().into_iter().map(Into::into).collect(),
+            accounts: tx.accounts.iter().map(AccountMeta::from).collect(),
             data: tx.data.clone(),
         }
     }
@@ -258,8 +258,8 @@ pub struct TransactionAccount {
     pub is_writable: bool,
 }
 
-impl From<TransactionAccount> for AccountMeta {
-    fn from(account: TransactionAccount) -> AccountMeta {
+impl From<&TransactionAccount> for AccountMeta {
+    fn from(account: &TransactionAccount) -> AccountMeta {
         match account.is_writable {
             false => AccountMeta::new_readonly(account.pubkey, account.is_signer),
             true => AccountMeta::new(account.pubkey, account.is_signer),

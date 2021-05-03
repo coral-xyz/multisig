@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use anchor_lang::prelude::AccountMeta;
 use anchor_client::solana_sdk::bpf_loader_upgradeable;
 use anchor_client::solana_sdk::commitment_config::CommitmentConfig;
 use anchor_client::solana_sdk::instruction::Instruction;
@@ -390,11 +391,42 @@ fn approve(program: Program, opts: ApproveOpts) {
         .expect("Failed to send transaction.");
 }
 
+/// Wrapper type needed to implement `ToAccountMetas`.
+struct TransactionAccounts(Vec<multisig::TransactionAccount>);
+
+impl anchor_lang::ToAccountMetas for TransactionAccounts {
+    fn to_account_metas(&self, is_signer: Option<bool>) -> Vec<AccountMeta> {
+        assert_eq!(
+            is_signer,
+            None,
+            "Overriding the signer is not implemented, it is not used by RequestBuilder::accounts.",
+        );
+        self.0.iter().map(|tx_account| {
+            let mut account_meta = AccountMeta::from(tx_account);
+            // When the program executes the transaction, it uses the account
+            // list with the right signers. But when we build the wrapper
+            // instruction that calls the multisig::execute_transaction, the
+            // signers of the inner instruction should not be signers of the
+            // outer one.
+            account_meta.is_signer = false;
+            account_meta
+        }).collect()
+    }
+}
+
 fn execute_transaction(program: Program, opts: ExecuteTransactionOpts) {
     let (program_derived_address, _nonce) = get_multisig_program_address(
         &program,
         &opts.multisig_address,
     );
+
+    // The wrapped instruction can reference additional accounts, that we need
+    // to specify in this `multisig::execute_transaction` instruction as well,
+    // otherwise `invoke_signed` can fail in `execute_transaction`.
+    let transaction: multisig::Transaction = program
+        .account(opts.transaction_address)
+        .expect("Failed to read transaction data from account.");
+    let tx_inner_accounts = TransactionAccounts(transaction.accounts);
 
     program
         .request()
@@ -403,6 +435,7 @@ fn execute_transaction(program: Program, opts: ExecuteTransactionOpts) {
             multisig_signer: program_derived_address,
             transaction: opts.transaction_address,
         })
+        .accounts(tx_inner_accounts)
         .args(multisig_instruction::ExecuteTransaction)
         .send()
         .expect("Failed to send transaction.");
