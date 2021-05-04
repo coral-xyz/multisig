@@ -289,7 +289,16 @@ fn show_transaction(program: Program, opts: ShowTransactionOpts) {
     let instr = Instruction::from(&transaction);
 
     println!("\nInstruction:");
-    println!("  Program to call:         {}", instr.program_id);
+    println!("  Program to call: {}", instr.program_id);
+    println!("  Accounts:\n");
+    for account in &instr.accounts {
+        println!(
+            "    * {}\n      signer: {}, writable: {}\n",
+            account.pubkey,
+            account.is_signer,
+            account.is_writable,
+        );
+    }
 
     if
         instr.program_id == bpf_loader_upgradeable::ID
@@ -297,10 +306,11 @@ fn show_transaction(program: Program, opts: ShowTransactionOpts) {
     {
         // Account meaning, according to
         // https://docs.rs/solana-sdk/1.5.19/solana_sdk/loader_upgradeable_instruction/enum.UpgradeableLoaderInstruction.html#variant.Upgrade
-        println!("  This is a bpf_loader_upgradeable upgrade instruction.");
-        println!("  Program to upgrade:      {}", instr.accounts[1].pubkey);
-        println!("  Buffer with new program: {}", instr.accounts[2].pubkey);
-        println!("  Spill address:           {}", instr.accounts[3].pubkey);
+        println!("  This is a bpf_loader_upgradeable::upgrade instruction.");
+        println!("    Program to upgrade:      {}", instr.accounts[1].pubkey);
+        println!("    Program data address:    {}", instr.accounts[0].pubkey);
+        println!("    Buffer with new program: {}", instr.accounts[2].pubkey);
+        println!("    Spill address:           {}", instr.accounts[3].pubkey);
     } else {
         println!("  Unrecognized instruction.");
     }
