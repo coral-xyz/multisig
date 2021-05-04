@@ -267,8 +267,10 @@ fn show_transaction(program: Program, opts: ShowTransactionOpts) {
 
     // Also query the multisig, to get the owner public keys, so we can display
     // exactly who voted.
-    // TODO: Is there a way to make the client query from the same block, so
-    // that we are sure that we get a consistent view of the data?
+    // Note: Although these are separate reads, the result will still be
+    // consistent, because the transaction account must be owned by the Multisig
+    // program, and the multisig program never modifies the
+    // `transaction.multisig` field.
     let multisig: multisig::Multisig = program
         .account(transaction.multisig)
         .expect("Failed to read multisig state from account.");
