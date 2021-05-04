@@ -22,9 +22,13 @@ struct Opts {
     #[clap(long)]
     multisig_program_id: Pubkey,
 
-    /// The keypair to sign and pay with. Defaults to ~/.config/solana/id.json.
+    /// The keypair to sign and pay with. [default: ~/.config/solana/id.json]
     #[clap(long)]
     keypair_path: Option<PathBuf>,
+
+    /// Cluster to connect to (mainnet, testnet, devnet, localnet, or url).
+    #[clap(long, default_value = "localnet")]
+    cluster: Cluster,
 
     #[clap(subcommand)]
     subcommand: SubCommand
@@ -129,6 +133,7 @@ fn get_default_keypair_path() -> PathBuf {
 
 fn main() {
     let opts = Opts::parse();
+
     let payer_keypair_path = match opts.keypair_path {
         Some(path) => path,
         None => get_default_keypair_path(),
@@ -137,7 +142,7 @@ fn main() {
         .expect(&format!("Failed to read key pair from {:?}.", payer_keypair_path));
 
     let client = Client::new_with_options(
-        Cluster::Localnet,
+        opts.cluster,
         payer,
         CommitmentConfig::confirmed(),
     );
