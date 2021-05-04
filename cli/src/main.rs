@@ -1,6 +1,5 @@
 use std::path::PathBuf;
 
-use anchor_lang::prelude::AccountMeta;
 use anchor_client::solana_sdk::bpf_loader_upgradeable;
 use anchor_client::solana_sdk::commitment_config::CommitmentConfig;
 use anchor_client::solana_sdk::instruction::Instruction;
@@ -10,6 +9,7 @@ use anchor_client::solana_sdk::signature::{Keypair, Signer};
 use anchor_client::solana_sdk::system_instruction;
 use anchor_client::solana_sdk::sysvar;
 use anchor_client::{Client, Cluster, Program};
+use anchor_lang::prelude::AccountMeta;
 use clap::Clap;
 use multisig::accounts as multisig_accounts;
 use multisig::instruction as multisig_instruction;
@@ -31,7 +31,7 @@ struct Opts {
     cluster: Cluster,
 
     #[clap(subcommand)]
-    subcommand: SubCommand
+    subcommand: SubCommand,
 }
 
 #[derive(Clap, Debug)]
@@ -138,14 +138,12 @@ fn main() {
         Some(path) => path,
         None => get_default_keypair_path(),
     };
-    let payer = read_keypair_file(&payer_keypair_path)
-        .expect(&format!("Failed to read key pair from {:?}.", payer_keypair_path));
+    let payer = read_keypair_file(&payer_keypair_path).expect(&format!(
+        "Failed to read key pair from {:?}.",
+        payer_keypair_path
+    ));
 
-    let client = Client::new_with_options(
-        opts.cluster,
-        payer,
-        CommitmentConfig::confirmed(),
-    );
+    let client = Client::new_with_options(opts.cluster, payer, CommitmentConfig::confirmed());
     let program = client.program(opts.multisig_program_id);
 
     match opts.subcommand {
@@ -158,17 +156,9 @@ fn main() {
     }
 }
 
-fn get_multisig_program_address(
-    program: &Program,
-    multisig_pubkey: &Pubkey,
-) -> (Pubkey, u8) {
-    let seeds = [
-        multisig_pubkey.as_ref(),
-    ];
-    Pubkey::find_program_address(
-        &seeds,
-        &program.id(),
-    )
+fn get_multisig_program_address(program: &Program, multisig_pubkey: &Pubkey) -> (Pubkey, u8) {
+    let seeds = [multisig_pubkey.as_ref()];
+    Pubkey::find_program_address(&seeds, &program.id())
 }
 
 fn create_multisig(program: Program, opts: CreateMultisigOpts) {
@@ -198,10 +188,8 @@ fn create_multisig(program: Program, opts: CreateMultisigOpts) {
     // valid, a bump seed is appended to the seeds. It is stored in the `nonce`
     // field in the multisig account, and the Multisig program includes it when
     // deriving its program address.
-    let (program_derived_address, nonce) = get_multisig_program_address(
-        &program,
-        &multisig_account.pubkey(),
-    );
+    let (program_derived_address, nonce) =
+        get_multisig_program_address(&program, &multisig_account.pubkey());
     println!(
         "Program derived address (use as upgrade authority): {}",
         program_derived_address,
@@ -245,12 +233,14 @@ fn show_multisig(program: Program, opts: ShowMultisigOpts) {
         .account(opts.multisig_address)
         .expect("Failed to read multisig state from account.");
 
-    let (program_derived_address, _nonce) = get_multisig_program_address(
-        &program,
-        &opts.multisig_address,
-    );
+    let (program_derived_address, _nonce) =
+        get_multisig_program_address(&program, &opts.multisig_address);
     println!("Program derived address: {}", program_derived_address);
-    println!("Threshold: {} out of {}", multisig.threshold, multisig.owners.len());
+    println!(
+        "Threshold: {} out of {}",
+        multisig.threshold,
+        multisig.owners.len()
+    );
     println!("Owners:");
     for owner_pubkey in &multisig.owners {
         println!("  {}", owner_pubkey);
@@ -288,7 +278,11 @@ fn show_transaction(program: Program, opts: ShowTransactionOpts) {
             .iter()
             .filter(|&did_sign| *did_sign)
             .count();
-        println!("It had {} out of {} signatures.", num_signatures, transaction.signers.len());
+        println!(
+            "It had {} out of {} signatures.",
+            num_signatures,
+            transaction.signers.len()
+        );
     }
 
     let instr = Instruction::from(&transaction);
@@ -299,14 +293,11 @@ fn show_transaction(program: Program, opts: ShowTransactionOpts) {
     for account in &instr.accounts {
         println!(
             "    * {}\n      signer: {}, writable: {}\n",
-            account.pubkey,
-            account.is_signer,
-            account.is_writable,
+            account.pubkey, account.is_signer, account.is_writable,
         );
     }
 
-    if
-        instr.program_id == bpf_loader_upgradeable::ID
+    if instr.program_id == bpf_loader_upgradeable::ID
         && bpf_loader_upgradeable::is_upgrade_instruction(&instr.data[..])
     {
         // Account meaning, according to
@@ -322,10 +313,8 @@ fn show_transaction(program: Program, opts: ShowTransactionOpts) {
 }
 
 fn propose_upgrade(program: Program, opts: ProposeUpgradeOpts) {
-    let (program_derived_address, _nonce) = get_multisig_program_address(
-        &program,
-        &opts.multisig_address,
-    );
+    let (program_derived_address, _nonce) =
+        get_multisig_program_address(&program, &opts.multisig_address);
 
     let upgrade_instruction = bpf_loader_upgradeable::upgrade(
         &opts.program_address,
@@ -415,20 +404,23 @@ struct TransactionAccounts {
 impl anchor_lang::ToAccountMetas for TransactionAccounts {
     fn to_account_metas(&self, is_signer: Option<bool>) -> Vec<AccountMeta> {
         assert_eq!(
-            is_signer,
-            None,
+            is_signer, None,
             "Overriding the signer is not implemented, it is not used by RequestBuilder::accounts.",
         );
-        let mut account_metas: Vec<_> = self.accounts.iter().map(|tx_account| {
-            let mut account_meta = AccountMeta::from(tx_account);
-            // When the program executes the transaction, it uses the account
-            // list with the right signers. But when we build the wrapper
-            // instruction that calls the multisig::execute_transaction, the
-            // signers of the inner instruction should not be signers of the
-            // outer one.
-            account_meta.is_signer = false;
-            account_meta
-        }).collect();
+        let mut account_metas: Vec<_> = self
+            .accounts
+            .iter()
+            .map(|tx_account| {
+                let mut account_meta = AccountMeta::from(tx_account);
+                // When the program executes the transaction, it uses the account
+                // list with the right signers. But when we build the wrapper
+                // instruction that calls the multisig::execute_transaction, the
+                // signers of the inner instruction should not be signers of the
+                // outer one.
+                account_meta.is_signer = false;
+                account_meta
+            })
+            .collect();
 
         // Aside from the accounts that the transaction references, we also need
         // to include the id of the program it calls as a referenced account in
@@ -440,15 +432,12 @@ impl anchor_lang::ToAccountMetas for TransactionAccounts {
         ));
 
         account_metas
-
     }
 }
 
 fn execute_transaction(program: Program, opts: ExecuteTransactionOpts) {
-    let (program_derived_address, _nonce) = get_multisig_program_address(
-        &program,
-        &opts.multisig_address,
-    );
+    let (program_derived_address, _nonce) =
+        get_multisig_program_address(&program, &opts.multisig_address);
 
     // The wrapped instruction can reference additional accounts, that we need
     // to specify in this `multisig::execute_transaction` instruction as well,
