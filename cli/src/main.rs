@@ -402,7 +402,10 @@ fn approve(program: Program, opts: ApproveOpts) {
 }
 
 /// Wrapper type needed to implement `ToAccountMetas`.
-struct TransactionAccounts(Vec<multisig::TransactionAccount>);
+struct TransactionAccounts {
+    accounts: Vec<multisig::TransactionAccount>,
+    program_id: Pubkey,
+}
 
 impl anchor_lang::ToAccountMetas for TransactionAccounts {
     fn to_account_metas(&self, is_signer: Option<bool>) -> Vec<AccountMeta> {
@@ -411,7 +414,7 @@ impl anchor_lang::ToAccountMetas for TransactionAccounts {
             None,
             "Overriding the signer is not implemented, it is not used by RequestBuilder::accounts.",
         );
-        self.0.iter().map(|tx_account| {
+        let mut account_metas: Vec<_> = self.accounts.iter().map(|tx_account| {
             let mut account_meta = AccountMeta::from(tx_account);
             // When the program executes the transaction, it uses the account
             // list with the right signers. But when we build the wrapper
@@ -420,7 +423,19 @@ impl anchor_lang::ToAccountMetas for TransactionAccounts {
             // outer one.
             account_meta.is_signer = false;
             account_meta
-        }).collect()
+        }).collect();
+
+        // Aside from the accounts that the transaction references, we also need
+        // to include the id of the program it calls as a referenced account in
+        // the outer instruction.
+        let program_is_signer = false;
+        account_metas.push(AccountMeta::new_readonly(
+            self.program_id,
+            program_is_signer,
+        ));
+
+        account_metas
+
     }
 }
 
@@ -436,7 +451,10 @@ fn execute_transaction(program: Program, opts: ExecuteTransactionOpts) {
     let transaction: multisig::Transaction = program
         .account(opts.transaction_address)
         .expect("Failed to read transaction data from account.");
-    let tx_inner_accounts = TransactionAccounts(transaction.accounts);
+    let tx_inner_accounts = TransactionAccounts {
+        accounts: transaction.accounts,
+        program_id: transaction.program_id,
+    };
 
     program
         .request()
