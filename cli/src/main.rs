@@ -202,8 +202,6 @@ fn create_multisig(program: Program, opts: CreateMultisigOpts) {
         &program,
         &multisig_account.pubkey(),
     );
-    // TODO: The address it prints here, is not equal to the one that the web UI
-    // displays ... why not?
     println!(
         "Program derived address (use as upgrade authority): {}",
         program_derived_address,
