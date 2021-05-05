@@ -9,7 +9,8 @@ use anchor_client::solana_sdk::signature::{Keypair, Signer};
 use anchor_client::solana_sdk::system_instruction;
 use anchor_client::solana_sdk::sysvar;
 use anchor_client::{Client, Cluster, Program};
-use anchor_lang::prelude::AccountMeta;
+use anchor_lang::prelude::{AccountMeta, ToAccountMetas};
+use anchor_lang::InstructionData;
 use clap::Clap;
 use multisig::accounts as multisig_accounts;
 use multisig::instruction as multisig_instruction;
@@ -47,6 +48,9 @@ enum SubCommand {
     /// Propose replacing a program with that in the given buffer account.
     ProposeUpgrade(ProposeUpgradeOpts),
 
+    /// Propose replacing the set of owners or threshold of this multisig.
+    ProposeChangeMultisig(ProposeChangeMultisigOpts),
+
     /// Approve a proposed transaction.
     Approve(ApproveOpts),
 
@@ -82,6 +86,21 @@ struct ProposeUpgradeOpts {
     /// Account that will receive leftover funds from the buffer account.
     #[clap(long)]
     spill_address: Pubkey,
+}
+
+#[derive(Clap, Debug)]
+struct ProposeChangeMultisigOpts {
+    /// The multisig account to modify.
+    #[clap(long)]
+    multisig_address: Pubkey,
+
+    /// How many signatures are needed to approve a transaction.
+    #[clap(long)]
+    threshold: u64,
+
+    /// The public keys of the multisig owners, who can sign transactions.
+    #[clap(long = "owner")]
+    owners: Vec<Pubkey>,
 }
 
 #[derive(Clap, Debug)]
@@ -150,6 +169,7 @@ fn main() {
         SubCommand::ShowMultisig(cmd_opts) => show_multisig(program, cmd_opts),
         SubCommand::ShowTransaction(cmd_opts) => show_transaction(program, cmd_opts),
         SubCommand::ProposeUpgrade(cmd_opts) => propose_upgrade(program, cmd_opts),
+        SubCommand::ProposeChangeMultisig(cmd_opts) => propose_change_multisig(program, cmd_opts),
         SubCommand::Approve(cmd_opts) => approve(program, cmd_opts),
         SubCommand::ExecuteTransaction(cmd_opts) => execute_transaction(program, cmd_opts),
     }
@@ -311,6 +331,16 @@ fn show_transaction(program: Program, opts: ShowTransactionOpts) {
     }
 }
 
+/// The Multisig program expects `multisig::TransactionAccount` instead of
+/// `solana_sdk::AccountMeta`. The types are structurally identical,
+/// but not nominally, so we need to convert these.
+fn account_meta_to_transaction_account(accounts: &[AccountMeta]) -> Vec<multisig::TransactionAccount> {
+    accounts
+        .iter()
+        .map(multisig::TransactionAccount::from)
+        .collect()
+}
+
 fn propose_upgrade(program: Program, opts: ProposeUpgradeOpts) {
     let (program_derived_address, _nonce) =
         get_multisig_program_address(&program, &opts.multisig_address);
@@ -323,14 +353,7 @@ fn propose_upgrade(program: Program, opts: ProposeUpgradeOpts) {
         &opts.spill_address,
     );
 
-    // The program expects `multisig::TransactionAccount` instead of
-    // `solana_sdk::AccountMeta`. The types are structurally identical,
-    // but not nominally, so we need to convert these.
-    let accounts: Vec<_> = upgrade_instruction
-        .accounts
-        .iter()
-        .map(multisig::TransactionAccount::from)
-        .collect();
+    let accounts = account_meta_to_transaction_account(&upgrade_instruction.accounts);
 
     // The transaction is stored by the Multisig program in yet another account,
     // that we create just for this transaction. We don't save the private key
@@ -373,6 +396,81 @@ fn propose_upgrade(program: Program, opts: ProposeUpgradeOpts) {
             pid: upgrade_instruction.program_id,
             accs: accounts,
             data: upgrade_instruction.data,
+        })
+        .send()
+        .expect("Failed to send transaction.");
+}
+
+/// Return the Solana instruction that calls `set_owners_and_change_threshold`.
+fn get_set_owners_and_change_threshold_instruction(
+    program: &Program,
+    opts: &ProposeChangeMultisigOpts,
+) -> Instruction {
+    let (program_derived_address, _nonce) =
+        get_multisig_program_address(&program, &opts.multisig_address);
+
+    let change_data = multisig_instruction::SetOwnersAndChangeThreshold {
+        owners: opts.owners.clone(),
+        threshold: opts.threshold,
+    };
+    let change_addrs = multisig_accounts::Auth {
+        multisig: opts.multisig_address,
+        multisig_signer: program_derived_address,
+    };
+    let override_is_signer = None;
+
+    Instruction {
+        program_id: program.id(),
+        data: change_data.data(),
+        accounts: change_addrs.to_account_metas(override_is_signer),
+    }
+}
+
+fn propose_change_multisig(program: Program, opts: ProposeChangeMultisigOpts) {
+    let change_instruction = get_set_owners_and_change_threshold_instruction(&program, &opts);
+    let accounts = account_meta_to_transaction_account(&change_instruction.accounts);
+
+    // The transaction is stored by the Multisig program in yet another account,
+    // that we create just for this transaction.
+    // TODO: Should we save the private key, to allow deleting the multisig
+    // account in order to recover the funds?
+    let transaction_account = Keypair::generate(&mut OsRng);
+    println!("Transaction account: {}", transaction_account.pubkey());
+
+    program
+        .request()
+        // Create the program-owned account that will hold the transaction data,
+        // and fund it from the payer account to make it rent-exempt.
+        .instruction(system_instruction::create_account(
+            &program.payer(),
+            &transaction_account.pubkey(),
+            // TODO: Is there a good way to determine the size of the
+            // transaction; can we serialize and measure maybe? For now, assume
+            // 500 bytes will be sufficient.
+            // TODO: Ask for confirmation from the user first before funding the
+            // account.
+            program
+                .rpc()
+                .get_minimum_balance_for_rent_exemption(500)
+                .expect("Failed to obtain minimum rent-exempt balance."),
+            500,
+            &program.id(),
+        ))
+        // Creating the account must be signed by the account itself.
+        .signer(&transaction_account)
+        .accounts(multisig_accounts::CreateTransaction {
+            multisig: opts.multisig_address,
+            transaction: transaction_account.pubkey(),
+            // For convenience, assume that the party that signs the proposal
+            // transaction is a member of the multisig owners, and use it as the
+            // proposer.
+            proposer: program.payer(),
+            rent: sysvar::rent::ID,
+        })
+        .args(multisig_instruction::CreateTransaction {
+            pid: change_instruction.program_id,
+            accs: accounts,
+            data: change_instruction.data,
         })
         .send()
         .expect("Failed to send transaction.");
