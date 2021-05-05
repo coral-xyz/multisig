@@ -65,8 +65,24 @@ struct CreateMultisigOpts {
     threshold: u64,
 
     /// The public keys of the multisig owners, who can sign transactions.
-    #[clap(long = "owner")]
+    #[clap(long = "owner", required = true)]
     owners: Vec<Pubkey>,
+}
+
+impl CreateMultisigOpts {
+    /// Perform a few basic checks to rule out nonsensical multisig settings.
+    ///
+    /// Exits if validation fails.
+    fn validate_or_exit(&self) {
+        if self.threshold > self.owners.len() as u64 {
+            println!("Threshold must be at most the number of owners.");
+            std::process::exit(1);
+        }
+        if self.threshold == 0 {
+            println!("Threshold must be at least 1.");
+            std::process::exit(1);
+        }
+    }
 }
 
 #[derive(Clap, Debug)]
@@ -94,13 +110,25 @@ struct ProposeChangeMultisigOpts {
     #[clap(long)]
     multisig_address: Pubkey,
 
+    // The fields below are the same as for `CreateMultisigOpts`, but we can't
+    // just embed a `CreateMultisigOpts`, because Clap does not support that.
+
     /// How many signatures are needed to approve a transaction.
     #[clap(long)]
     threshold: u64,
 
     /// The public keys of the multisig owners, who can sign transactions.
-    #[clap(long = "owner")]
+    #[clap(long = "owner", required = true)]
     owners: Vec<Pubkey>,
+}
+
+impl From<&ProposeChangeMultisigOpts> for CreateMultisigOpts {
+    fn from(opts: &ProposeChangeMultisigOpts) -> CreateMultisigOpts {
+        CreateMultisigOpts {
+            threshold: opts.threshold,
+            owners: opts.owners.clone(),
+        }
+    }
 }
 
 #[derive(Clap, Debug)]
@@ -181,14 +209,8 @@ fn get_multisig_program_address(program: &Program, multisig_pubkey: &Pubkey) -> 
 }
 
 fn create_multisig(program: Program, opts: CreateMultisigOpts) {
-    if opts.threshold > opts.owners.len() as u64 {
-        println!("Threshold must be at most the number of owners.");
-        std::process::exit(1);
-    }
-    if opts.threshold == 0 {
-        println!("Threshold must be at least 1.");
-        std::process::exit(1);
-    }
+    // Enforce a few basic sanity checks.
+    opts.validate_or_exit();
 
     // Before we can make the Multisig program initialize a new multisig
     // account, we need to have a program-owned account to used for that.
@@ -331,29 +353,16 @@ fn show_transaction(program: Program, opts: ShowTransactionOpts) {
     }
 }
 
-/// The Multisig program expects `multisig::TransactionAccount` instead of
-/// `solana_sdk::AccountMeta`. The types are structurally identical,
-/// but not nominally, so we need to convert these.
-fn account_meta_to_transaction_account(accounts: &[AccountMeta]) -> Vec<multisig::TransactionAccount> {
-    accounts
+/// Propose the given instruction to be approved and executed by the multisig.
+fn propose_instruction(program: Program, multisig_address: Pubkey, instruction: Instruction) {
+    // The Multisig program expects `multisig::TransactionAccount` instead of
+    // `solana_sdk::AccountMeta`. The types are structurally identical,
+    // but not nominally, so we need to convert these.
+    let accounts = instruction
+        .accounts
         .iter()
         .map(multisig::TransactionAccount::from)
-        .collect()
-}
-
-fn propose_upgrade(program: Program, opts: ProposeUpgradeOpts) {
-    let (program_derived_address, _nonce) =
-        get_multisig_program_address(&program, &opts.multisig_address);
-
-    let upgrade_instruction = bpf_loader_upgradeable::upgrade(
-        &opts.program_address,
-        &opts.buffer_address,
-        // The upgrade authority is the multisig-derived program address.
-        &program_derived_address,
-        &opts.spill_address,
-    );
-
-    let accounts = account_meta_to_transaction_account(&upgrade_instruction.accounts);
+        .collect();
 
     // The transaction is stored by the Multisig program in yet another account,
     // that we create just for this transaction. We don't save the private key
@@ -384,7 +393,7 @@ fn propose_upgrade(program: Program, opts: ProposeUpgradeOpts) {
         // Creating the account must be signed by the account itself.
         .signer(&transaction_account)
         .accounts(multisig_accounts::CreateTransaction {
-            multisig: opts.multisig_address,
+            multisig: multisig_address,
             transaction: transaction_account.pubkey(),
             // For convenience, assume that the party that signs the proposal
             // transaction is a member of the multisig owners, and use it as the
@@ -393,87 +402,54 @@ fn propose_upgrade(program: Program, opts: ProposeUpgradeOpts) {
             rent: sysvar::rent::ID,
         })
         .args(multisig_instruction::CreateTransaction {
-            pid: upgrade_instruction.program_id,
+            pid: instruction.program_id,
             accs: accounts,
-            data: upgrade_instruction.data,
+            data: instruction.data,
         })
         .send()
         .expect("Failed to send transaction.");
 }
 
-/// Return the Solana instruction that calls `set_owners_and_change_threshold`.
-fn get_set_owners_and_change_threshold_instruction(
-    program: &Program,
-    opts: &ProposeChangeMultisigOpts,
-) -> Instruction {
+fn propose_upgrade(program: Program, opts: ProposeUpgradeOpts) {
+    let (program_derived_address, _nonce) =
+        get_multisig_program_address(&program, &opts.multisig_address);
+
+    let upgrade_instruction = bpf_loader_upgradeable::upgrade(
+        &opts.program_address,
+        &opts.buffer_address,
+        // The upgrade authority is the multisig-derived program address.
+        &program_derived_address,
+        &opts.spill_address,
+    );
+
+    propose_instruction(program, opts.multisig_address, upgrade_instruction);
+}
+
+fn propose_change_multisig(program: Program, opts: ProposeChangeMultisigOpts) {
+    // Check that the new settings make sense. This check is shared between a
+    // new multisig or altering an existing one.
+    CreateMultisigOpts::from(&opts).validate_or_exit();
+
     let (program_derived_address, _nonce) =
         get_multisig_program_address(&program, &opts.multisig_address);
 
     let change_data = multisig_instruction::SetOwnersAndChangeThreshold {
-        owners: opts.owners.clone(),
+        owners: opts.owners,
         threshold: opts.threshold,
     };
     let change_addrs = multisig_accounts::Auth {
         multisig: opts.multisig_address,
         multisig_signer: program_derived_address,
     };
-    let override_is_signer = None;
 
-    Instruction {
+    let override_is_signer = None;
+    let change_instruction = Instruction {
         program_id: program.id(),
         data: change_data.data(),
         accounts: change_addrs.to_account_metas(override_is_signer),
-    }
-}
+    };
 
-fn propose_change_multisig(program: Program, opts: ProposeChangeMultisigOpts) {
-    let change_instruction = get_set_owners_and_change_threshold_instruction(&program, &opts);
-    let accounts = account_meta_to_transaction_account(&change_instruction.accounts);
-
-    // The transaction is stored by the Multisig program in yet another account,
-    // that we create just for this transaction.
-    // TODO: Should we save the private key, to allow deleting the multisig
-    // account in order to recover the funds?
-    let transaction_account = Keypair::generate(&mut OsRng);
-    println!("Transaction account: {}", transaction_account.pubkey());
-
-    program
-        .request()
-        // Create the program-owned account that will hold the transaction data,
-        // and fund it from the payer account to make it rent-exempt.
-        .instruction(system_instruction::create_account(
-            &program.payer(),
-            &transaction_account.pubkey(),
-            // TODO: Is there a good way to determine the size of the
-            // transaction; can we serialize and measure maybe? For now, assume
-            // 500 bytes will be sufficient.
-            // TODO: Ask for confirmation from the user first before funding the
-            // account.
-            program
-                .rpc()
-                .get_minimum_balance_for_rent_exemption(500)
-                .expect("Failed to obtain minimum rent-exempt balance."),
-            500,
-            &program.id(),
-        ))
-        // Creating the account must be signed by the account itself.
-        .signer(&transaction_account)
-        .accounts(multisig_accounts::CreateTransaction {
-            multisig: opts.multisig_address,
-            transaction: transaction_account.pubkey(),
-            // For convenience, assume that the party that signs the proposal
-            // transaction is a member of the multisig owners, and use it as the
-            // proposer.
-            proposer: program.payer(),
-            rent: sysvar::rent::ID,
-        })
-        .args(multisig_instruction::CreateTransaction {
-            pid: change_instruction.program_id,
-            accs: accounts,
-            data: change_instruction.data,
-        })
-        .send()
-        .expect("Failed to send transaction.");
+    propose_instruction(program, opts.multisig_address, change_instruction);
 }
 
 fn approve(program: Program, opts: ApproveOpts) {
