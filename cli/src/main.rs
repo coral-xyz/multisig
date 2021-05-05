@@ -11,6 +11,7 @@ use anchor_client::solana_sdk::sysvar;
 use anchor_client::{Client, Cluster, Program};
 use anchor_lang::prelude::{AccountMeta, ToAccountMetas};
 use anchor_lang::InstructionData;
+use borsh::de::BorshDeserialize;
 use clap::Clap;
 use multisig::accounts as multisig_accounts;
 use multisig::instruction as multisig_instruction;
@@ -112,7 +113,6 @@ struct ProposeChangeMultisigOpts {
 
     // The fields below are the same as for `CreateMultisigOpts`, but we can't
     // just embed a `CreateMultisigOpts`, because Clap does not support that.
-
     /// How many signatures are needed to approve a transaction.
     #[clap(long)]
     threshold: u64,
@@ -348,6 +348,34 @@ fn show_transaction(program: Program, opts: ShowTransactionOpts) {
         println!("    Program data address:    {}", instr.accounts[0].pubkey);
         println!("    Buffer with new program: {}", instr.accounts[2].pubkey);
         println!("    Spill address:           {}", instr.accounts[3].pubkey);
+    } else
+    // Try to deserialize the known multisig instructions. The instruction
+    // data starts with an 8-byte tag derived from the name of the function,
+    // and then the struct data itself, so we need to skip the first 8 bytes
+    // when deserializing. See also `anchor_lang::InstructionData::data()`.
+    // There doesn't appear to be a way to access the tag through code
+    // currently (https://github.com/project-serum/anchor/issues/243), so we
+    // hard-code the tag here (it is stable as long as the namespace and
+    // function name do not change).
+    if instr.program_id == program.id()
+        && &instr.data[..8] == &[122, 49, 168, 177, 231, 28, 167, 204]
+    {
+        if let Ok(instr) =
+            multisig_instruction::SetOwnersAndChangeThreshold::try_from_slice(&instr.data[8..])
+        {
+            println!("  This is a multisig::set_owners_and_change_threshold instruction.");
+            println!(
+                "    New threshold: {} out of {}",
+                instr.threshold,
+                instr.owners.len()
+            );
+            println!("    New owners:");
+            for owner_pubkey in &instr.owners {
+                println!("      {}", owner_pubkey);
+            }
+        } else {
+            println!("  Unrecognized instruction.");
+        }
     } else {
         println!("  Unrecognized instruction.");
     }
@@ -363,6 +391,8 @@ fn propose_instruction(program: Program, multisig_address: Pubkey, instruction: 
         .iter()
         .map(multisig::TransactionAccount::from)
         .collect();
+
+    println!("Proposed TX data: {:?}", instruction.data);
 
     // The transaction is stored by the Multisig program in yet another account,
     // that we create just for this transaction. We don't save the private key
