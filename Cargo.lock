@@ -576,6 +576,8 @@ dependencies = [
  "borsh",
  "clap 3.0.0-beta.2",
  "multisig",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
