@@ -11,8 +11,9 @@ use anchor_client::solana_sdk::system_instruction;
 use anchor_client::solana_sdk::sysvar;
 use anchor_client::{Client, Cluster, Program};
 use anchor_lang::prelude::{AccountMeta, ToAccountMetas};
-use anchor_lang::InstructionData;
+use anchor_lang::{Discriminator, InstructionData};
 use borsh::de::BorshDeserialize;
+use borsh::ser::BorshSerialize;
 use clap::Clap;
 use multisig::accounts as multisig_accounts;
 use multisig::instruction as multisig_instruction;
@@ -636,7 +637,7 @@ fn propose_instruction(
     // The Multisig program expects `multisig::TransactionAccount` instead of
     // `solana_sdk::AccountMeta`. The types are structurally identical,
     // but not nominally, so we need to convert these.
-    let accounts = instruction
+    let accounts: Vec<_> = instruction
         .accounts
         .iter()
         .map(multisig::TransactionAccount::from)
@@ -648,6 +649,24 @@ fn propose_instruction(
     // funds will be locked forever.
     let transaction_account = Keypair::new();
 
+    // Build the data that the account will hold, just to measure its size, so
+    // we can allocate an account of the right size.
+    let dummy_tx = multisig::Transaction {
+        multisig: multisig_address,
+        program_id: instruction.program_id,
+        accounts: accounts.clone(),
+        data: instruction.data.clone(),
+        signers: accounts.iter().map(|_| false).collect(),
+        did_execute: false,
+        owner_set_seqno: 0,
+    };
+
+    // The space used is the serialization of the transaction itself, plus the
+    // discriminator that Anchor uses to identify the account type.
+    let mut account_bytes = dummy_tx.try_to_vec()
+        .expect("Failed to serialize dummy transaction.");
+    account_bytes.extend(&multisig::Transaction::discriminator()[..]);
+
     program
         .request()
         // Create the program-owned account that will hold the transaction data,
@@ -655,16 +674,13 @@ fn propose_instruction(
         .instruction(system_instruction::create_account(
             &program.payer(),
             &transaction_account.pubkey(),
-            // TODO: Is there a good way to determine the size of the
-            // transaction; can we serialize and measure maybe? For now, assume
-            // 500 bytes will be sufficient.
             // TODO: Ask for confirmation from the user first before funding the
             // account.
             program
                 .rpc()
-                .get_minimum_balance_for_rent_exemption(500)
+                .get_minimum_balance_for_rent_exemption(account_bytes.len())
                 .expect("Failed to obtain minimum rent-exempt balance."),
-            500,
+            account_bytes.len() as u64,
             &program.id(),
         ))
         // Creating the account must be signed by the account itself.
