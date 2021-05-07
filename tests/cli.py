@@ -1,5 +1,17 @@
 #!/usr/bin/env python3
 
+"""
+This script calls 'solana' and 'multisig' to go through two multisig flows:
+
+ * Upgrade a program managed by a multisig.
+ * Change the owners of a multisig.
+
+It exits with exit code 0 if everything works as expected, or with a nonzero
+exit code if anything fails. It expects a test validator to be running at at the
+default localhost port, and it expects a keypair at ~/.config/solana/id.json
+that corresponds to a sufficiently funded account.
+"""
+
 import json
 import os.path
 import shutil
@@ -195,7 +207,7 @@ else:
     sys.exit(1)
 
 
-print('\nProposing upgrade ...')
+print('\nProposing program upgrade ...')
 result = multisig(
     '--keypair-path', 'test-key-1.json',
     'propose-upgrade',
@@ -204,15 +216,15 @@ result = multisig(
     '--buffer-address', buffer_address,
     '--spill-address', addr1,
 )
-transaction_address = result['transaction_address']
-print(f'> Transaction address is {transaction_address}.')
+upgrade_transaction_address = result['transaction_address']
+print(f'> Transaction address is {upgrade_transaction_address}.')
 
 
 # Confirm that only the proposer signed the transaction at this point, and that
 # it is the upgrade transaction that we intended.
 result = multisig(
     'show-transaction',
-    '--transaction-address', transaction_address,
+    '--transaction-address', upgrade_transaction_address,
 )
 assert result['did_execute'] == False
 
@@ -235,7 +247,7 @@ try:
     multisig(
         'execute-transaction',
         '--multisig-address', multisig_address,
-        '--transaction-address', transaction_address,
+        '--transaction-address', upgrade_transaction_address,
     )
 except subprocess.CalledProcessError as err:
     assert err.returncode != 0
@@ -253,11 +265,11 @@ multisig(
     '--keypair-path', 'test-key-2.json',
     'approve',
     '--multisig-address', multisig_address,
-    '--transaction-address', transaction_address,
+    '--transaction-address', upgrade_transaction_address,
 )
 result = multisig(
     'show-transaction',
-    '--transaction-address', transaction_address,
+    '--transaction-address', upgrade_transaction_address,
 )
 assert result['signers']['Current']['signers'] == [
     {'owner': addr1, 'did_sign': True},
@@ -271,11 +283,11 @@ print('\nTrying to execute with 2 of 2 signatures, which should succeed ...')
 multisig(
     'execute-transaction',
     '--multisig-address', multisig_address,
-    '--transaction-address', transaction_address,
+    '--transaction-address', upgrade_transaction_address,
 )
 result = multisig(
     'show-transaction',
-    '--transaction-address', transaction_address,
+    '--transaction-address', upgrade_transaction_address,
 )
 assert result['did_execute'] == True
 print('> Transaction is marked as executed.')
@@ -290,7 +302,7 @@ try:
     multisig(
         'execute-transaction',
         '--multisig-address', multisig_address,
-        '--transaction-address', transaction_address,
+        '--transaction-address', upgrade_transaction_address,
     )
 except subprocess.CalledProcessError as err:
     assert err.returncode != 0
@@ -300,4 +312,122 @@ except subprocess.CalledProcessError as err:
     print('> Execution failed as expected.')
 else:
     print('> Execution succeeded even though it should not have.')
+    sys.exit(1)
+
+
+# Next we are going to test changing the multisig. Before we go and do that,
+# confirm that it currently looks like we expect it to look.
+multisig_before = multisig('show-multisig', '--multisig-address', multisig_address)
+assert multisig_before == {
+    'multisig_program_derived_address': multisig_program_derived_address,
+    'threshold': 2,
+    'owners': [addr1, addr2, addr3],
+}
+
+
+print('\nProposing to remove the third owner from the multisig ...')
+# This time we omit the third owner. The threshold remains 2.
+result = multisig(
+    '--keypair-path', 'test-key-1.json',
+    'propose-change-multisig',
+    '--multisig-address', multisig_address,
+    '--threshold', '2',
+    '--owner', addr1,
+    '--owner', addr2,
+)
+change_multisig_transaction_address = result['transaction_address']
+print(f'> Transaction address is {change_multisig_transaction_address}.')
+
+
+print('\nApproving transaction from a second account ...')
+multisig(
+    '--keypair-path', 'test-key-3.json',
+    'approve',
+    '--multisig-address', multisig_address,
+    '--transaction-address', change_multisig_transaction_address,
+)
+result = multisig(
+    'show-transaction',
+    '--transaction-address', change_multisig_transaction_address,
+)
+assert result['signers']['Current']['signers'] == [
+    {'owner': addr1, 'did_sign': True},
+    {'owner': addr2, 'did_sign': False},
+    {'owner': addr3, 'did_sign': True},
+]
+print('> Transaction has the required number of signatures.')
+
+
+print('\nExecuting multisig change transaction ...')
+multisig(
+    'execute-transaction',
+    '--multisig-address', multisig_address,
+    '--transaction-address', change_multisig_transaction_address,
+)
+result = multisig(
+    'show-transaction',
+    '--transaction-address', change_multisig_transaction_address,
+)
+assert result['did_execute'] == True
+print('> Transaction is marked as executed.')
+
+multisig_after = multisig('show-multisig', '--multisig-address', multisig_address)
+assert multisig_after == {
+    'multisig_program_derived_address': multisig_program_derived_address,
+    'threshold': 2,
+    'owners': [addr1, addr2],
+}
+print(f'> The third owner was removed.')
+
+
+print('\nChecking that the old transaction does not show outdated owner info ...')
+result = multisig(
+    'show-transaction',
+    '--transaction-address', upgrade_transaction_address,
+)
+assert 'Outdated' in result['signers']
+assert result['signers']['Outdated'] == {
+    'num_signed': 2,
+    'num_owners': 3,
+}
+print('> Owners ids are gone, but approval count is preserved as expected.')
+
+
+# Next we will propose a final program upgrade, to confirm that the third owner
+# is no longer allowed to approve.
+print('\nProposing new program upgrade ...')
+result = multisig(
+    '--keypair-path', 'test-key-1.json',
+    'propose-upgrade',
+    '--multisig-address', multisig_address,
+    '--program-address', program_id,
+    '--buffer-address', buffer_address,
+    '--spill-address', addr1,
+)
+upgrade_transaction_address = result['transaction_address']
+print(f'> Transaction address is {upgrade_transaction_address}.')
+
+
+print('\nApproving this transaction from owner 3, which should fail ...')
+try:
+    multisig(
+        '--keypair-path', 'test-key-3.json',
+        'approve',
+        '--multisig-address', multisig_address,
+        '--transaction-address', upgrade_transaction_address,
+    )
+except subprocess.CalledProcessError as err:
+    assert err.returncode != 0
+    assert 'The given owner is not part of this multisig.' in err.stderr
+    result = multisig(
+        'show-transaction',
+        '--transaction-address', upgrade_transaction_address,
+    )
+    assert result['signers']['Current']['signers'] == [
+        {'owner': addr1, 'did_sign': True},
+        {'owner': addr2, 'did_sign': False},
+    ]
+    print('> Approve failed as expected.')
+else:
+    print('> Approve succeeded even though it should not have.')
     sys.exit(1)
