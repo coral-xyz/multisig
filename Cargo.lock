@@ -575,7 +575,6 @@ dependencies = [
  "anchor-lang",
  "clap 3.0.0-beta.2",
  "multisig",
- "rand 0.7.3",
 ]
 
 [[package]]

@@ -13,7 +13,6 @@ use anchor_lang::prelude::AccountMeta;
 use clap::Clap;
 use multisig::accounts as multisig_accounts;
 use multisig::instruction as multisig_instruction;
-use rand::rngs::OsRng;
 
 /// Multisig -- interact with a deployed Multisig program.
 #[derive(Clap, Debug)]
@@ -175,10 +174,10 @@ fn create_multisig(program: Program, opts: CreateMultisigOpts) {
     // account, we need to have a program-owned account to used for that.
     // We generate a temporary key pair for this; after the account is
     // constructed, we no longer need to manipulate it (it is managed by the
-    // Multisig program).
-    // TODO: Should we save the private key, to allow deleting the multisig
-    // account in order to recover the funds?
-    let multisig_account = Keypair::generate(&mut OsRng);
+    // Multisig program). We don't save the private key because the account will
+    // be owned by the Multisig program later anyway. Its funds will be locked
+    // up forever.
+    let multisig_account = Keypair::new();
 
     println!("Multisig account: {}", multisig_account.pubkey());
 
@@ -334,10 +333,10 @@ fn propose_upgrade(program: Program, opts: ProposeUpgradeOpts) {
         .collect();
 
     // The transaction is stored by the Multisig program in yet another account,
-    // that we create just for this transaction.
-    // TODO: Should we save the private key, to allow deleting the multisig
-    // account in order to recover the funds?
-    let transaction_account = Keypair::generate(&mut OsRng);
+    // that we create just for this transaction. We don't save the private key
+    // because the account will be owned by the multisig program later; its
+    // funds will be locked forever.
+    let transaction_account = Keypair::new();
     println!("Transaction account: {}", transaction_account.pubkey());
 
     program

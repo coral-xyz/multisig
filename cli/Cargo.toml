@@ -10,10 +10,6 @@ anchor-lang = "0.4.4"
 clap = "3.0.0-beta.2"
 multisig = { path = "../programs/multisig" }
 
-# With 0.8.3, we get an error that CryptoRng is not implemented for OsRng, even
-# though it is according to the docs.
-rand = "0.7.3"
-
 [[bin]]
 path = "src/main.rs"
 name = "multisig"
