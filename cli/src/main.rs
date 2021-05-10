@@ -1,3 +1,4 @@
+use std::fmt;
 use std::path::PathBuf;
 
 use anchor_client::solana_sdk::bpf_loader_upgradeable;
@@ -10,11 +11,13 @@ use anchor_client::solana_sdk::system_instruction;
 use anchor_client::solana_sdk::sysvar;
 use anchor_client::{Client, Cluster, Program};
 use anchor_lang::prelude::{AccountMeta, ToAccountMetas};
-use anchor_lang::InstructionData;
+use anchor_lang::{Discriminator, InstructionData};
 use borsh::de::BorshDeserialize;
+use borsh::ser::BorshSerialize;
 use clap::Clap;
 use multisig::accounts as multisig_accounts;
 use multisig::instruction as multisig_instruction;
+use serde::{Serialize, Serializer};
 
 /// Multisig -- interact with a deployed Multisig program.
 #[derive(Clap, Debug)]
@@ -30,6 +33,10 @@ struct Opts {
     /// Cluster to connect to (mainnet, testnet, devnet, localnet, or url).
     #[clap(long, default_value = "localnet")]
     cluster: Cluster,
+
+    /// Output json instead of text to stdout.
+    #[clap(long)]
+    output_json: bool,
 
     #[clap(subcommand)]
     subcommand: SubCommand,
@@ -177,6 +184,16 @@ fn get_default_keypair_path() -> PathBuf {
     path
 }
 
+fn print_output<Output: fmt::Display + Serialize>(as_json: bool, output: &Output) {
+    if as_json {
+        let json_string =
+            serde_json::to_string_pretty(output).expect("Failed to serialize output as json.");
+        println!("{}", json_string);
+    } else {
+        println!("{}", output);
+    }
+}
+
 fn main() {
     let opts = Opts::parse();
 
@@ -193,11 +210,26 @@ fn main() {
     let program = client.program(opts.multisig_program_id);
 
     match opts.subcommand {
-        SubCommand::CreateMultisig(cmd_opts) => create_multisig(program, cmd_opts),
-        SubCommand::ShowMultisig(cmd_opts) => show_multisig(program, cmd_opts),
-        SubCommand::ShowTransaction(cmd_opts) => show_transaction(program, cmd_opts),
-        SubCommand::ProposeUpgrade(cmd_opts) => propose_upgrade(program, cmd_opts),
-        SubCommand::ProposeChangeMultisig(cmd_opts) => propose_change_multisig(program, cmd_opts),
+        SubCommand::CreateMultisig(cmd_opts) => {
+            let output = create_multisig(program, cmd_opts);
+            print_output(opts.output_json, &output);
+        }
+        SubCommand::ShowMultisig(cmd_opts) => {
+            let output = show_multisig(program, cmd_opts);
+            print_output(opts.output_json, &output);
+        }
+        SubCommand::ShowTransaction(cmd_opts) => {
+            let output = show_transaction(program, cmd_opts);
+            print_output(opts.output_json, &output);
+        }
+        SubCommand::ProposeUpgrade(cmd_opts) => {
+            let output = propose_upgrade(program, cmd_opts);
+            print_output(opts.output_json, &output);
+        }
+        SubCommand::ProposeChangeMultisig(cmd_opts) => {
+            let output = propose_change_multisig(program, cmd_opts);
+            print_output(opts.output_json, &output);
+        }
         SubCommand::Approve(cmd_opts) => approve(program, cmd_opts),
         SubCommand::ExecuteTransaction(cmd_opts) => execute_transaction(program, cmd_opts),
     }
@@ -208,7 +240,54 @@ fn get_multisig_program_address(program: &Program, multisig_pubkey: &Pubkey) -> 
     Pubkey::find_program_address(&seeds, &program.id())
 }
 
-fn create_multisig(program: Program, opts: CreateMultisigOpts) {
+/// Wrapper for `Pubkey` to serialize it as base58 in json, instead of a list of numbers.
+struct PubkeyBase58(Pubkey);
+
+impl fmt::Display for PubkeyBase58 {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl Serialize for PubkeyBase58 {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        // Defer to the Display impl, which formats as base58.
+        serializer.collect_str(&self.0)
+    }
+}
+
+impl From<Pubkey> for PubkeyBase58 {
+    fn from(pk: Pubkey) -> PubkeyBase58 {
+        PubkeyBase58(pk)
+    }
+}
+
+impl From<&Pubkey> for PubkeyBase58 {
+    fn from(pk: &Pubkey) -> PubkeyBase58 {
+        PubkeyBase58(pk.clone())
+    }
+}
+
+#[derive(Serialize)]
+struct CreateMultisigOutput {
+    multisig_address: PubkeyBase58,
+    multisig_program_derived_address: PubkeyBase58,
+}
+
+impl fmt::Display for CreateMultisigOutput {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(f, "Multisig address:        {}", self.multisig_address)?;
+        writeln!(
+            f,
+            "Program derived address: {}",
+            self.multisig_program_derived_address
+        )?;
+        writeln!(f, "The multisig can sign on behalf of the derived address.")?;
+        Ok(())
+    }
+}
+
+fn create_multisig(program: Program, opts: CreateMultisigOpts) -> CreateMultisigOutput {
     // Enforce a few basic sanity checks.
     opts.validate_or_exit();
 
@@ -221,20 +300,14 @@ fn create_multisig(program: Program, opts: CreateMultisigOpts) {
     // up forever.
     let multisig_account = Keypair::new();
 
-    println!("Multisig account: {}", multisig_account.pubkey());
-
     // The Multisig program will sign transactions on behalf of a derived
-    // account. Print this derived account, so it can be used to set as e.g.
+    // account. Return this derived account, so it can be used to set as e.g.
     // the upgrade authority for a program. Because not every derived address is
     // valid, a bump seed is appended to the seeds. It is stored in the `nonce`
     // field in the multisig account, and the Multisig program includes it when
     // deriving its program address.
     let (program_derived_address, nonce) =
         get_multisig_program_address(&program, &multisig_account.pubkey());
-    println!(
-        "Program derived address (use as upgrade authority): {}",
-        program_derived_address,
-    );
 
     program
         .request()
@@ -267,34 +340,197 @@ fn create_multisig(program: Program, opts: CreateMultisigOpts) {
         })
         .send()
         .expect("Failed to send transaction.");
+
+    CreateMultisigOutput {
+        multisig_address: multisig_account.pubkey().into(),
+        multisig_program_derived_address: program_derived_address.into(),
+    }
 }
 
-fn show_multisig(program: Program, opts: ShowMultisigOpts) {
+#[derive(Serialize)]
+struct ShowMultisigOutput {
+    multisig_program_derived_address: PubkeyBase58,
+    threshold: u64,
+    owners: Vec<PubkeyBase58>,
+}
+
+impl fmt::Display for ShowMultisigOutput {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(
+            f,
+            "Program derived address: {}",
+            self.multisig_program_derived_address
+        )?;
+        writeln!(
+            f,
+            "Threshold: {} out of {}",
+            self.threshold,
+            self.owners.len()
+        )?;
+        writeln!(f, "Owners:")?;
+        for owner_pubkey in &self.owners {
+            writeln!(f, "  {}", owner_pubkey)?;
+        }
+        Ok(())
+    }
+}
+
+fn show_multisig(program: Program, opts: ShowMultisigOpts) -> ShowMultisigOutput {
     let multisig: multisig::Multisig = program
         .account(opts.multisig_address)
         .expect("Failed to read multisig state from account.");
 
     let (program_derived_address, _nonce) =
         get_multisig_program_address(&program, &opts.multisig_address);
-    println!("Program derived address: {}", program_derived_address);
-    println!(
-        "Threshold: {} out of {}",
-        multisig.threshold,
-        multisig.owners.len()
-    );
-    println!("Owners:");
-    for owner_pubkey in &multisig.owners {
-        println!("  {}", owner_pubkey);
+
+    ShowMultisigOutput {
+        multisig_program_derived_address: program_derived_address.into(),
+        threshold: multisig.threshold,
+        owners: multisig.owners.iter().map(PubkeyBase58::from).collect(),
     }
 }
 
-fn show_transaction(program: Program, opts: ShowTransactionOpts) {
+#[derive(Serialize)]
+struct ShowTransactionSigner {
+    owner: PubkeyBase58,
+    did_sign: bool,
+}
+
+#[derive(Serialize)]
+enum ShowTransactionSigners {
+    /// The current owners of the multisig are the same as in the transaction,
+    /// and these are the owners and whether they signed.
+    Current { signers: Vec<ShowTransactionSigner> },
+
+    /// The owners of the multisig have changed since this transaction, so we
+    /// cannot know who the signers were any more, only how many signatures it
+    /// had.
+    Outdated {
+        num_signed: usize,
+        num_owners: usize,
+    },
+}
+
+/// If an `Instruction` is a known one, this contains its details.
+#[derive(Serialize)]
+enum ParsedInstruction {
+    BpfLoaderUpgrade {
+        program_to_upgrade: PubkeyBase58,
+        program_data_address: PubkeyBase58,
+        buffer_address: PubkeyBase58,
+        spill_address: PubkeyBase58,
+    },
+    MultisigChange {
+        threshold: u64,
+        owners: Vec<PubkeyBase58>,
+    },
+    Unrecognized,
+}
+
+#[derive(Serialize)]
+struct ShowTransactionOutput {
+    multisig_address: PubkeyBase58,
+    did_execute: bool,
+    signers: ShowTransactionSigners,
+    // TODO: when using --output-json, the addresses in here get serialized as
+    // arrays of numbers instead of base58 strings, because this uses the
+    // regular Solana `Pubkey` types. But I don't feel like creating an
+    // `Instruction` duplicate just for this purpose right now, we can create
+    // one when needed.
+    instruction: Instruction,
+    parsed_instruction: ParsedInstruction,
+}
+
+impl fmt::Display for ShowTransactionOutput {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(f, "Multisig: {}", self.multisig_address)?;
+        writeln!(f, "Did execute: {}", self.did_execute)?;
+
+        match &self.signers {
+            ShowTransactionSigners::Current { signers } => {
+                writeln!(f, "\nSigners:")?;
+                for signer in signers {
+                    writeln!(
+                        f,
+                        "  [{}] {}",
+                        if signer.did_sign { 'x' } else { ' ' },
+                        signer.owner,
+                    )?;
+                }
+            }
+            ShowTransactionSigners::Outdated {
+                num_signed,
+                num_owners,
+            } => {
+                writeln!(
+                    f,
+                    "\nThe owners of the multisig have changed since this transaction was created,"
+                )?;
+                writeln!(f, "therefore we cannot show the identities of the signers.")?;
+                writeln!(
+                    f,
+                    "The transaction had {} out of {} signatures.",
+                    num_signed, num_owners,
+                )?;
+            }
+        }
+
+        writeln!(f, "\nInstruction:")?;
+        writeln!(f, "  Program to call: {}", self.instruction.program_id)?;
+        writeln!(f, "  Accounts:\n")?;
+        for account in &self.instruction.accounts {
+            writeln!(
+                f,
+                "    * {}\n      signer: {}, writable: {}\n",
+                account.pubkey, account.is_signer, account.is_writable,
+            )?;
+        }
+
+        match &self.parsed_instruction {
+            ParsedInstruction::BpfLoaderUpgrade {
+                program_to_upgrade,
+                program_data_address,
+                buffer_address,
+                spill_address,
+            } => {
+                writeln!(
+                    f,
+                    "  This is a bpf_loader_upgradeable::upgrade instruction."
+                )?;
+                writeln!(f, "    Program to upgrade:      {}", program_to_upgrade)?;
+                writeln!(f, "    Program data address:    {}", program_data_address)?;
+                writeln!(f, "    Buffer with new program: {}", buffer_address)?;
+                writeln!(f, "    Spill address:           {}", spill_address)?;
+            }
+            ParsedInstruction::MultisigChange { threshold, owners } => {
+                writeln!(
+                    f,
+                    "  This is a multisig::set_owners_and_change_threshold instruction."
+                )?;
+                writeln!(
+                    f,
+                    "    New threshold: {} out of {}",
+                    threshold,
+                    owners.len()
+                )?;
+                writeln!(f, "    New owners:")?;
+                for owner_pubkey in owners {
+                    writeln!(f, "      {}", owner_pubkey)?;
+                }
+            }
+            ParsedInstruction::Unrecognized => {
+                writeln!(f, "  Unrecognized instruction.")?;
+            }
+        }
+
+        Ok(())
+    }
+}
+
+fn show_transaction(program: Program, opts: ShowTransactionOpts) -> ShowTransactionOutput {
     let transaction: multisig::Transaction = program
         .account(opts.transaction_address)
         .expect("Failed to read transaction data from account.");
-
-    println!("Multisig: {}", transaction.multisig);
-    println!("Did execute: {}", transaction.did_execute);
 
     // Also query the multisig, to get the owner public keys, so we can display
     // exactly who voted.
@@ -306,48 +542,46 @@ fn show_transaction(program: Program, opts: ShowTransactionOpts) {
         .account(transaction.multisig)
         .expect("Failed to read multisig state from account.");
 
-    if transaction.owner_set_seqno == multisig.owner_set_seqno {
-        println!("\nSigners:");
-        for (owner_pubkey, &did_sign) in multisig.owners.iter().zip(&transaction.signers) {
-            println!("  [{}] {}", if did_sign { 'x' } else { ' ' }, owner_pubkey);
+    let signers = if transaction.owner_set_seqno == multisig.owner_set_seqno {
+        // If the owners did not change, match up every vote with its owner.
+        ShowTransactionSigners::Current {
+            signers: multisig
+                .owners
+                .iter()
+                .cloned()
+                .zip(transaction.signers.iter())
+                .map(|(owner, did_sign)| ShowTransactionSigner {
+                    owner: owner.into(),
+                    did_sign: *did_sign,
+                })
+                .collect(),
         }
     } else {
-        println!("The owners of the multisig have changed since this transaction was created,");
-        println!("therefore we cannot show the identities of the signers.");
-        let num_signatures = transaction
-            .signers
-            .iter()
-            .filter(|&did_sign| *did_sign)
-            .count();
-        println!(
-            "It had {} out of {} signatures.",
-            num_signatures,
-            transaction.signers.len()
-        );
-    }
+        // If the owners did change, we no longer know who voted. The best we
+        // can do is report how many signatures there were.
+        ShowTransactionSigners::Outdated {
+            num_signed: transaction
+                .signers
+                .iter()
+                .filter(|&did_sign| *did_sign)
+                .count(),
+            num_owners: transaction.signers.len(),
+        }
+    };
 
     let instr = Instruction::from(&transaction);
 
-    println!("\nInstruction:");
-    println!("  Program to call: {}", instr.program_id);
-    println!("  Accounts:\n");
-    for account in &instr.accounts {
-        println!(
-            "    * {}\n      signer: {}, writable: {}\n",
-            account.pubkey, account.is_signer, account.is_writable,
-        );
-    }
-
-    if instr.program_id == bpf_loader_upgradeable::ID
+    let parsed_instr = if instr.program_id == bpf_loader_upgradeable::ID
         && bpf_loader_upgradeable::is_upgrade_instruction(&instr.data[..])
     {
         // Account meaning, according to
         // https://docs.rs/solana-sdk/1.5.19/solana_sdk/loader_upgradeable_instruction/enum.UpgradeableLoaderInstruction.html#variant.Upgrade
-        println!("  This is a bpf_loader_upgradeable::upgrade instruction.");
-        println!("    Program to upgrade:      {}", instr.accounts[1].pubkey);
-        println!("    Program data address:    {}", instr.accounts[0].pubkey);
-        println!("    Buffer with new program: {}", instr.accounts[2].pubkey);
-        println!("    Spill address:           {}", instr.accounts[3].pubkey);
+        ParsedInstruction::BpfLoaderUpgrade {
+            program_data_address: instr.accounts[0].pubkey.into(),
+            program_to_upgrade: instr.accounts[1].pubkey.into(),
+            buffer_address: instr.accounts[2].pubkey.into(),
+            spill_address: instr.accounts[3].pubkey.into(),
+        }
     } else
     // Try to deserialize the known multisig instructions. The instruction
     // data starts with an 8-byte tag derived from the name of the function,
@@ -363,43 +597,75 @@ fn show_transaction(program: Program, opts: ShowTransactionOpts) {
         if let Ok(instr) =
             multisig_instruction::SetOwnersAndChangeThreshold::try_from_slice(&instr.data[8..])
         {
-            println!("  This is a multisig::set_owners_and_change_threshold instruction.");
-            println!(
-                "    New threshold: {} out of {}",
-                instr.threshold,
-                instr.owners.len()
-            );
-            println!("    New owners:");
-            for owner_pubkey in &instr.owners {
-                println!("      {}", owner_pubkey);
+            ParsedInstruction::MultisigChange {
+                threshold: instr.threshold,
+                owners: instr.owners.iter().map(PubkeyBase58::from).collect(),
             }
         } else {
-            println!("  Unrecognized instruction.");
+            ParsedInstruction::Unrecognized
         }
     } else {
-        println!("  Unrecognized instruction.");
+        ParsedInstruction::Unrecognized
+    };
+
+    ShowTransactionOutput {
+        multisig_address: transaction.multisig.into(),
+        did_execute: transaction.did_execute,
+        signers: signers,
+        instruction: instr,
+        parsed_instruction: parsed_instr,
+    }
+}
+
+#[derive(Serialize)]
+struct ProposeInstructionOutput {
+    transaction_address: PubkeyBase58,
+}
+
+impl fmt::Display for ProposeInstructionOutput {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(f, "Transaction address: {}", self.transaction_address)
     }
 }
 
 /// Propose the given instruction to be approved and executed by the multisig.
-fn propose_instruction(program: Program, multisig_address: Pubkey, instruction: Instruction) {
+fn propose_instruction(
+    program: Program,
+    multisig_address: Pubkey,
+    instruction: Instruction,
+) -> ProposeInstructionOutput {
     // The Multisig program expects `multisig::TransactionAccount` instead of
     // `solana_sdk::AccountMeta`. The types are structurally identical,
     // but not nominally, so we need to convert these.
-    let accounts = instruction
+    let accounts: Vec<_> = instruction
         .accounts
         .iter()
         .map(multisig::TransactionAccount::from)
         .collect();
-
-    println!("Proposed TX data: {:?}", instruction.data);
 
     // The transaction is stored by the Multisig program in yet another account,
     // that we create just for this transaction. We don't save the private key
     // because the account will be owned by the multisig program later; its
     // funds will be locked forever.
     let transaction_account = Keypair::new();
-    println!("Transaction account: {}", transaction_account.pubkey());
+
+    // Build the data that the account will hold, just to measure its size, so
+    // we can allocate an account of the right size.
+    let dummy_tx = multisig::Transaction {
+        multisig: multisig_address,
+        program_id: instruction.program_id,
+        accounts: accounts.clone(),
+        data: instruction.data.clone(),
+        signers: accounts.iter().map(|_| false).collect(),
+        did_execute: false,
+        owner_set_seqno: 0,
+    };
+
+    // The space used is the serialization of the transaction itself, plus the
+    // discriminator that Anchor uses to identify the account type.
+    let mut account_bytes = dummy_tx.try_to_vec()
+        .expect("Failed to serialize dummy transaction.");
+    account_bytes.extend(&multisig::Transaction::discriminator()[..]);
 
     program
         .request()
@@ -408,16 +674,13 @@ fn propose_instruction(program: Program, multisig_address: Pubkey, instruction: 
         .instruction(system_instruction::create_account(
             &program.payer(),
             &transaction_account.pubkey(),
-            // TODO: Is there a good way to determine the size of the
-            // transaction; can we serialize and measure maybe? For now, assume
-            // 500 bytes will be sufficient.
             // TODO: Ask for confirmation from the user first before funding the
             // account.
             program
                 .rpc()
-                .get_minimum_balance_for_rent_exemption(500)
+                .get_minimum_balance_for_rent_exemption(account_bytes.len())
                 .expect("Failed to obtain minimum rent-exempt balance."),
-            500,
+            account_bytes.len() as u64,
             &program.id(),
         ))
         // Creating the account must be signed by the account itself.
@@ -438,9 +701,13 @@ fn propose_instruction(program: Program, multisig_address: Pubkey, instruction: 
         })
         .send()
         .expect("Failed to send transaction.");
+
+    ProposeInstructionOutput {
+        transaction_address: transaction_account.pubkey().into(),
+    }
 }
 
-fn propose_upgrade(program: Program, opts: ProposeUpgradeOpts) {
+fn propose_upgrade(program: Program, opts: ProposeUpgradeOpts) -> ProposeInstructionOutput {
     let (program_derived_address, _nonce) =
         get_multisig_program_address(&program, &opts.multisig_address);
 
@@ -452,10 +719,13 @@ fn propose_upgrade(program: Program, opts: ProposeUpgradeOpts) {
         &opts.spill_address,
     );
 
-    propose_instruction(program, opts.multisig_address, upgrade_instruction);
+    propose_instruction(program, opts.multisig_address, upgrade_instruction)
 }
 
-fn propose_change_multisig(program: Program, opts: ProposeChangeMultisigOpts) {
+fn propose_change_multisig(
+    program: Program,
+    opts: ProposeChangeMultisigOpts,
+) -> ProposeInstructionOutput {
     // Check that the new settings make sense. This check is shared between a
     // new multisig or altering an existing one.
     CreateMultisigOpts::from(&opts).validate_or_exit();
@@ -479,7 +749,7 @@ fn propose_change_multisig(program: Program, opts: ProposeChangeMultisigOpts) {
         accounts: change_addrs.to_account_metas(override_is_signer),
     };
 
-    propose_instruction(program, opts.multisig_address, change_instruction);
+    propose_instruction(program, opts.multisig_address, change_instruction)
 }
 
 fn approve(program: Program, opts: ApproveOpts) {
