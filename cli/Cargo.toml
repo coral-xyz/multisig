@@ -1,0 +1,15 @@
+[package]
+name = "cli"
+version = "0.0.0"
+edition = "2018"
+publish = false
+
+[dependencies]
+anchor-client = "0.4.4"
+anchor-lang = "0.4.4"
+clap = "3.0.0-beta.2"
+multisig = { path = "../programs/multisig" }
+
+[[bin]]
+path = "src/main.rs"
+name = "multisig"
