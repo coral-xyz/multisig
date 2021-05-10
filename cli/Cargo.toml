@@ -9,6 +9,7 @@ anchor-client = "0.4.4"
 anchor-lang = "0.4.4"
 clap = "3.0.0-beta.2"
 multisig = { path = "../programs/multisig" }
+borsh = "0.8.2"
 
 [[bin]]
 path = "src/main.rs"

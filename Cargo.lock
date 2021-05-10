@@ -573,6 +573,7 @@ version = "0.0.0"
 dependencies = [
  "anchor-client",
  "anchor-lang",
+ "borsh",
  "clap 3.0.0-beta.2",
  "multisig",
 ]
