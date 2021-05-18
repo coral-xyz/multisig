@@ -663,7 +663,8 @@ fn propose_instruction(
 
     // The space used is the serialization of the transaction itself, plus the
     // discriminator that Anchor uses to identify the account type.
-    let mut account_bytes = dummy_tx.try_to_vec()
+    let mut account_bytes = dummy_tx
+        .try_to_vec()
         .expect("Failed to serialize dummy transaction.");
     account_bytes.extend(&multisig::Transaction::discriminator()[..]);
 
