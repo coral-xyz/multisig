@@ -23,7 +23,7 @@ use anchor_lang::solana_program::instruction::Instruction;
 use std::convert::Into;
 
 #[program]
-pub mod serum_multisig {
+pub mod serum_multisig_impl {
     use super::*;
 
     // Initializes a new multisig account with a set of owners and a threshold.
