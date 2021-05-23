@@ -1,5 +1,5 @@
 [provider]
-cluster = "mainnet"
+cluster = "localnet"
 wallet = "~/.config/solana/id.json"
 
 [clusters.devnet]
