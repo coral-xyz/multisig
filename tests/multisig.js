@@ -59,8 +59,8 @@ describe("multisig", () => {
       },
     ];
     const newOwners = [ownerA.publicKey, ownerB.publicKey, ownerD.publicKey];
-    const data = program.coder.instruction.encode('set_owners', {
-        owners: newOwners,
+    const data = program.coder.instruction.encode("set_owners", {
+      owners: newOwners,
     });
 
     const transaction = new anchor.web3.Account();
