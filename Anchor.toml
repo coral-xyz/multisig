@@ -3,7 +3,7 @@ cluster = "localnet"
 wallet = "~/.config/solana/id.json"
 
 [clusters.devnet]
-multisig = "FHY7K5SQvp7dUmGScjLih3hcwJe9GZ8cTShXkdeQJzRD"
+multisig = "F3Uf5F61dmht1xuNNNkk3jnzj82TY56vVjVEhZALRkN"
 
 [clusters.mainnet]
-multisig = "3uztpEgUmvirDBYRXgDamUDZiU5EcgTwArQ2pULtHJPC"
+multisig = "A9HAbnCwoD6f2NkZobKFf6buJoN9gUVVvX5PoUnDHS6u"
