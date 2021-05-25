@@ -140,11 +140,11 @@ pub mod multisig {
             .accounts
             .iter()
             .map(|acc| {
+                let mut acc = acc.clone();
                 if &acc.pubkey == ctx.accounts.multisig_signer.key {
-                    AccountMeta::new_readonly(acc.pubkey, true)
-                } else {
-                    acc.clone()
+                    acc.is_signer = true;
                 }
+                acc
             })
             .collect();
         let seeds = &[
