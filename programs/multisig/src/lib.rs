@@ -166,7 +166,7 @@ pub mod serum_multisig {
         ];
         let signer = &[&seeds[..]];
         let accounts = ctx.remaining_accounts;
-        solana_program::program::invoke_signed(&ix, &accounts, signer)?;
+        solana_program::program::invoke_signed(&ix, accounts, signer)?;
 
         // Burn the transaction to ensure one time use.
         ctx.accounts.transaction.did_execute = true;
