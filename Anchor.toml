@@ -1,9 +1,14 @@
+anchor_version = "0.13.0"
+
 [provider]
 cluster = "localnet"
 wallet = "~/.config/solana/id.json"
 
-[clusters.devnet]
-multisig = "F3Uf5F61dmht1xuNNNkk3jnzj82TY56vVjVEhZALRkN"
+[registry]
+url = "http://localhost:8080"
 
-[clusters.mainnet]
-multisig = "A9HAbnCwoD6f2NkZobKFf6buJoN9gUVVvX5PoUnDHS6u"
+[programs.devnet]
+serum_multisig = "F3Uf5F61dmht1xuNNNkk3jnzj82TY56vVjVEhZALRkN"
+
+[programs.mainnet]
+serum_multisig = { address = "A9HAbnCwoD6f2NkZobKFf6buJoN9gUVVvX5PoUnDHS6u", path = "./target/deploy/serum_multisig.so" }
