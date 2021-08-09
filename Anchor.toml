@@ -1,9 +1,14 @@
+anchor_version = "0.13.0"
+
 [provider]
 cluster = "localnet"
 wallet = "~/.config/solana/id.json"
 
-[clusters.devnet]
-multisig = "F3Uf5F61dmht1xuNNNkk3jnzj82TY56vVjVEhZALRkN"
+[programs.devnet]
+serum_multisig = "F3Uf5F61dmht1xuNNNkk3jnzj82TY56vVjVEhZALRkN"
 
-[clusters.mainnet]
-multisig = "A9HAbnCwoD6f2NkZobKFf6buJoN9gUVVvX5PoUnDHS6u"
+[programs.mainnet]
+serum_multisig = { address = "A9HAbnCwoD6f2NkZobKFf6buJoN9gUVVvX5PoUnDHS6u", path = "./target/deploy/serum_multisig.so", idl = "./target/idl/serum_multisig.json" }
+
+[scripts]
+test = "mocha -t 1000000 tests/"

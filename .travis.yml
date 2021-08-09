@@ -5,14 +5,14 @@ rust:
 env:
   global:
     - NODE_VERSION="v14.7.0"
-    - SOLANA_VERSION="v1.6.6"
-    - ANCHOR_VERSION="v0.6.0"
+    - SOLANA_VERSION="v1.7.8"
+    - ANCHOR_VERSION="v0.13.0"
 
 before_deploy:
   - anchor build --verifiable
   - echo "### SHA256 Checksums" > release_notes.md
-  - sha256sum target/deploy/multisig.so > binary.txt
-  - sha256sum target/idl/multisig.json > idl.txt
+  - sha256sum target/deploy/serum_multisig.so > binary.txt
+  - sha256sum target/idl/serum_multisig.json > idl.txt
   - cat *.txt >> release_notes.md
   - echo "" >> release_notes.md
   - echo "Built with Anchor [${ANCHOR_VERSION}](https://github.com/project-serum/anchor/releases/tag/${ANCHOR_VERSION})." >> release_notes.md
@@ -21,8 +21,8 @@ deploy:
   provider: releases
   edge: true
   file:
-    - "target/deploy/multisig.so"
-    - "target/idl/multisig.json"
+    - "target/deploy/serum_multisig.so"
+    - "target/idl/serum_multisig.json"
   release_notes_file: release_notes.md
   skip_cleanup: true
   on:

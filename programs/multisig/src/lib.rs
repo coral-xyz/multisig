@@ -23,7 +23,7 @@ use anchor_lang::solana_program::instruction::Instruction;
 use std::convert::Into;
 
 #[program]
-pub mod multisig {
+pub mod serum_multisig {
     use super::*;
 
     // Initializes a new multisig account with a set of owners and a threshold.
@@ -195,9 +195,9 @@ pub struct CreateTransaction<'info> {
 
 #[derive(Accounts)]
 pub struct Approve<'info> {
-    #[account("multisig.owner_set_seqno == transaction.owner_set_seqno")]
+    #[account(constraint = multisig.owner_set_seqno == transaction.owner_set_seqno)]
     multisig: ProgramAccount<'info, Multisig>,
-    #[account(mut, belongs_to = multisig)]
+    #[account(mut, has_one = multisig)]
     transaction: ProgramAccount<'info, Transaction>,
     // One of the multisig owners. Checked in the handler.
     #[account(signer)]
@@ -217,14 +217,14 @@ pub struct Auth<'info> {
 
 #[derive(Accounts)]
 pub struct ExecuteTransaction<'info> {
-    #[account("multisig.owner_set_seqno == transaction.owner_set_seqno")]
+    #[account(constraint = multisig.owner_set_seqno == transaction.owner_set_seqno)]
     multisig: ProgramAccount<'info, Multisig>,
     #[account(seeds = [
         multisig.to_account_info().key.as_ref(),
         &[multisig.nonce],
     ])]
     multisig_signer: AccountInfo<'info>,
-    #[account(mut, belongs_to = multisig)]
+    #[account(mut, has_one = multisig)]
     transaction: ProgramAccount<'info, Transaction>,
 }
 

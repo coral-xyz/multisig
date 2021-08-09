@@ -1,12 +1,12 @@
 [package]
-name = "multisig"
-version = "0.4.0"
+name = "serum-multisig"
+version = "0.5.0"
 description = "Created with Anchor"
 edition = "2018"
 
 [lib]
 crate-type = ["cdylib", "lib"]
-name = "multisig"
+name = "serum_multisig"
 
 [features]
 no-entrypoint = []
@@ -15,4 +15,4 @@ cpi = ["no-entrypoint"]
 default = []
 
 [dependencies]
-anchor-lang = "0.6.0"
+anchor-lang = "0.13.0"
