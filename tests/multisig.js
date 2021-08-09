@@ -5,7 +5,7 @@ describe("multisig", () => {
   // Configure the client to use the local cluster.
   anchor.setProvider(anchor.Provider.env());
 
-  const program = anchor.workspace.Multisig;
+  const program = anchor.workspace.SerumMultisig;
 
   it("Tests the multisig program", async () => {
     const multisig = anchor.web3.Keypair.generate();
@@ -39,7 +39,7 @@ describe("multisig", () => {
       signers: [multisig],
     });
 
-    let multisigAccount = await program.account.multisig(multisig.publicKey);
+    let multisigAccount = await program.account.multisig.fetch(multisig.publicKey);
     assert.strictEqual(multisigAccount.nonce, nonce);
     assert.ok(multisigAccount.threshold.eq(new anchor.BN(2)));
     assert.deepStrictEqual(multisigAccount.owners, owners);
@@ -81,7 +81,7 @@ describe("multisig", () => {
       signers: [transaction, ownerA],
     });
 
-    const txAccount = await program.account.transaction(transaction.publicKey);
+    const txAccount = await program.account.transaction.fetch(transaction.publicKey);
 
     assert.ok(txAccount.programId.equals(pid));
     assert.deepStrictEqual(txAccount.accounts, accounts);
@@ -125,7 +125,7 @@ describe("multisig", () => {
         }),
     });
 
-    multisigAccount = await program.account.multisig(multisig.publicKey);
+    multisigAccount = await program.account.multisig.fetch(multisig.publicKey);
 
     assert.strictEqual(multisigAccount.nonce, nonce);
     assert.ok(multisigAccount.threshold.eq(new anchor.BN(2)));
