@@ -23,7 +23,7 @@ use anchor_lang::solana_program::instruction::Instruction;
 use std::convert::Into;
 
 #[program]
-pub mod serum_multisig_impl {
+pub mod serum_multisig {
     use super::*;
 
     // Initializes a new multisig account with a set of owners and a threshold.
@@ -177,7 +177,7 @@ pub mod serum_multisig_impl {
 
 #[derive(Accounts)]
 pub struct CreateMultisig<'info> {
-    #[account(init)]
+    #[account(zero)]
     multisig: ProgramAccount<'info, Multisig>,
     rent: Sysvar<'info, Rent>,
 }
@@ -185,7 +185,7 @@ pub struct CreateMultisig<'info> {
 #[derive(Accounts)]
 pub struct CreateTransaction<'info> {
     multisig: ProgramAccount<'info, Multisig>,
-    #[account(init)]
+    #[account(zero)]
     transaction: ProgramAccount<'info, Transaction>,
     // One of the owners. Checked in the handler.
     #[account(signer)]
@@ -208,10 +208,11 @@ pub struct Approve<'info> {
 pub struct Auth<'info> {
     #[account(mut)]
     multisig: ProgramAccount<'info, Multisig>,
-    #[account(signer, seeds = [
-        multisig.to_account_info().key.as_ref(),
-        &[multisig.nonce],
-    ])]
+    #[account(
+        signer,
+        seeds = [multisig.to_account_info().key.as_ref()],
+        bump = multisig.nonce,
+    )]
     multisig_signer: AccountInfo<'info>,
 }
 
@@ -219,10 +220,10 @@ pub struct Auth<'info> {
 pub struct ExecuteTransaction<'info> {
     #[account(constraint = multisig.owner_set_seqno == transaction.owner_set_seqno)]
     multisig: ProgramAccount<'info, Multisig>,
-    #[account(seeds = [
-        multisig.to_account_info().key.as_ref(),
-        &[multisig.nonce],
-    ])]
+    #[account(
+        seeds = [multisig.to_account_info().key.as_ref()],
+        bump = multisig.nonce,
+    )]
     multisig_signer: AccountInfo<'info>,
     #[account(mut, has_one = multisig)]
     transaction: ProgramAccount<'info, Transaction>,
