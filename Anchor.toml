@@ -1,7 +1,7 @@
 anchor_version = "0.14.0"
 
 [provider]
-cluster = "localnet"
+cluster = "Localnet"
 wallet = "~/.config/solana/id.json"
 
 [programs.mainnet]
@@ -9,6 +9,9 @@ serum_multisig = "6tbPiQLgTU4ySYWyZGXbnVSAEzLc1uF8t5kJPXXgBmRP"
 
 [programs.devnet]
 serum_multisig = "F3Uf5F61dmht1xuNNNkk3jnzj82TY56vVjVEhZALRkN"
+
+[programs.localnet]
+serum_multisig = "3qpMCMkVRHYVfaey8BLb3ofSQs5xgieATfqvxDyb3coi"
 
 [scripts]
 test = "mocha -t 1000000 tests/"
