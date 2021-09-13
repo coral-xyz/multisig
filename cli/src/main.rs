@@ -19,9 +19,11 @@ mod gateway;
 mod cli;
 mod anchor_toml;
 mod service;
+mod request_builder;
 
 
 fn main() -> Result<()> {
+    solana_logger::setup_with_default("solana=debug");
     let cli_opts = Opts::parse();
     let anchor_toml = anchor_toml::load(&cli_opts.config)?;
     let program_id = Pubkey::from_str(&match anchor_toml.provider.cluster {
@@ -45,10 +47,12 @@ fn load_service(
 ) -> Result<MultisigService> {
     let keypair = read_keypair_file(&*shellexpand::tilde(keypair_path))
         .expect(&format!("Invalid keypair file {}", keypair_path));
-    let connection = anchor_client::Client::new(cluster, keypair);
+    let connection = anchor_client::Client::new(cluster.clone(), keypair);
     let client = connection.program(program_id);
+    let keypair = read_keypair_file(&*shellexpand::tilde(keypair_path))
+        .expect(&format!("Invalid keypair file {}", keypair_path));
 
-    Ok(MultisigService { program: MultisigGateway { client } })
+    Ok(MultisigService { program: MultisigGateway { client, cluster, keypair } })
 }
 
 fn run_job(job: Job, service: MultisigService) -> Result<()> {
@@ -57,16 +61,14 @@ fn run_job(job: Job, service: MultisigService) -> Result<()> {
             let owners = cmd.owners.split_whitespace()
                 .map(|s| Pubkey::from_str(s).expect(&format!("Invalid Pubkey: '{}'", s)))
                 .collect::<Vec<Pubkey>>();
-            let key = service.program.create_multisig(cmd.threshold, owners)?;
-            println!("{}", key);
+            let keys = service.program.create_multisig(cmd.threshold, owners)?;
+            println!("{} {}", keys.0, keys.1);
         }
         Job::ProposeUpgrade(cmd) => {
             let key = service.propose_upgrade(
                 &cmd.multisig, 
                 &cmd.program, 
-                &cmd.buffer, 
-                &cmd.multisig, 
-                &service.program.client.payer()
+                &cmd.buffer,
             )?;
             println!("{}", key);
         }

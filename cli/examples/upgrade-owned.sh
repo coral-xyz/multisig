@@ -4,12 +4,13 @@ multisig() {
     cargo run -- $@
 }
 
-program_id=DTSXKszUjCuaNTFdRCaxi49RZN2NWWJs3JCokidCtLhH
-multisig_key=2XZHQr2mnogMFNF3TzFXUH8p2fbmufWrhL9jjbNM4ma7
+program_id=BiEeLpivfo1XDkLyPa5oy86Lk4qgrPHkL2TkuZXXpkes
+multisig_key=s4w4PRKf7gYSvHYPVD1F7fxr7aJvduj8UVqocuakZ1e
+multisig_signer=7Psodcsu54tuLnm6Fa8QhQ1zbcHzvpwNJWWpakvm6m6W
 upgrade_file=/home/drew/mine/jet/code/jet-protocol/target/deploy/jet.so
 
 
-buffer="$(solana program write-buffer --buffer-authority "$multisig_key" "$upgrade_file" | awk '{print $2}')"
+buffer="$(solana program write-buffer --buffer-authority "$multisig_signer" "$upgrade_file" | awk '{print $2}')"
 echo buffer $buffer
 transaction="$(multisig propose-upgrade $multisig_key $program_id $buffer)"
 echo tx $transaction
