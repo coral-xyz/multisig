@@ -9,7 +9,7 @@ pub struct MultisigService {
 }
 
 impl MultisigService {
-    pub fn upgrade_program(
+    pub fn propose_upgrade(
         &self,
         multisig: &Pubkey,
         program: &Pubkey,

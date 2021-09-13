@@ -61,7 +61,7 @@ fn run_job(job: Job, service: MultisigService) -> Result<()> {
             println!("{}", key);
         }
         Job::ProposeUpgrade(cmd) => {
-            let key = service.upgrade_program(
+            let key = service.propose_upgrade(
                 &cmd.multisig, 
                 &cmd.program, 
                 &cmd.buffer, 

@@ -22,7 +22,11 @@ pub struct MultisigGateway {
 }
 
 impl MultisigGateway {
-    pub fn create_multisig(&self, threshold: u64, owners: Vec<Pubkey>) -> Result<Pubkey> {
+    pub fn create_multisig(
+        &self,
+        threshold: u64,
+        owners: Vec<Pubkey>
+    ) -> Result<Pubkey> {
         let multisig_acct = Keypair::generate(&mut OsRng);
         let signer_bump = Pubkey::find_program_address(
             &[&multisig_acct.pubkey().to_bytes()],

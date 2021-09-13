@@ -36,4 +36,3 @@ pub struct Transaction {
     pub multisig: Pubkey,
     pub transaction: Pubkey,
 }
-
