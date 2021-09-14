@@ -21,7 +21,7 @@ pub enum Job {
 #[derive(Clap, Debug)]
 pub struct CreateMultisig {
     pub threshold: u64,
-    pub owners: String,
+    pub owners: Vec<String>,
 }
 
 #[derive(Clap)]
