@@ -59,9 +59,13 @@ fn load_service(
 fn run_job(job: Job, service: MultisigService) -> Result<()> {
     match job {
         Job::CreateMultisig(cmd) => {
-            let owners = cmd.owners.split_whitespace()
-                .map(|s| Pubkey::from_str(s).expect(&format!("Invalid Pubkey: '{}'", s)))
-                .collect::<Vec<Pubkey>>();
+            let owners =
+                cmd.owners
+                    .iter()
+                    .map(|s|
+                        Pubkey::from_str(s).expect(
+                            &format!("Invalid Pubkey: '{}'", s)))
+                    .collect();
             let keys = service.program.create_multisig(cmd.threshold, owners)?;
             println!("{} {}", keys.0, keys.1);
         }
