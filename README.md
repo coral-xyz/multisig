@@ -23,6 +23,17 @@ signed.
 
 * **This code is unaudited. Use at your own risk.**
 
+## Non-Upgradeable mainnet-beta verifiable deployed versions
+
+* Tag 0.7.0 deployed at: `msigmtwzgXJHj2ext4XJjCDmpbcMuufFb5cHuwg6Xdt`
+
+To verify: check out tag 0.7.0 and...
+```bash
+cd serum/multisig/programs/multisig
+anchor verify msigmtwzgXJHj2ext4XJjCDmpbcMuufFb5cHuwg6Xdt`
+```
+
+
 ## Developing
 
 [Anchor](https://github.com/project-serum/anchor) is used for developoment, and it's
