@@ -230,6 +230,7 @@ pub struct ExecuteTransaction<'info> {
 }
 
 #[account]
+#[derive(Debug)]
 pub struct Multisig {
     pub owners: Vec<Pubkey>,
     pub threshold: u64,
@@ -238,6 +239,7 @@ pub struct Multisig {
 }
 
 #[account]
+#[derive(Debug)]
 pub struct Transaction {
     // The multisig account this transaction belongs to.
     pub multisig: Pubkey,
@@ -265,7 +267,7 @@ impl From<&Transaction> for Instruction {
     }
 }
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Debug)]
 pub struct TransactionAccount {
     pub pubkey: Pubkey,
     pub is_signer: bool,

@@ -13,6 +13,7 @@ use anyhow::Result;
 use clap::Clap;
 use cli::{Opts, Job};
 use gateway::MultisigGateway;
+use serum_multisig::{Multisig, Transaction};
 use service::MultisigService;
 
 mod gateway;
@@ -83,6 +84,14 @@ fn run_job(job: Job, service: MultisigService) -> Result<()> {
                 cmd.multisig, 
                 cmd.transaction,
             )?;
+        }
+        Job::GetMultisig(cmd) => {
+            let ms = service.program.client.account::<Multisig>(cmd.key)?;
+            println!("{:?}", ms);
+        }
+        Job::GetTransaction(cmd) => {
+            let tx = service.program.client.account::<Transaction>(cmd.key)?;
+            println!("{:?}", tx);
         }
     }
     Ok(())

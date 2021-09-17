@@ -107,6 +107,71 @@ impl MultisigGateway {
         Ok(())
     }
 
+    pub fn set_owners_and_change_threshold(
+        &self,
+        multisig: Pubkey,
+        owners: Vec<Pubkey>,
+        threshold: u64,
+    ) -> Result<()> {
+        let multisig_signer = Pubkey::find_program_address(
+            &[&multisig.to_bytes()],
+            &self.client.id(),
+        ).0;
+        self.client.request()
+            .accounts(serum_multisig::accounts::Auth {
+                multisig,
+                multisig_signer,
+            })
+            .args(serum_multisig::instruction::SetOwnersAndChangeThreshold {
+                owners,
+                threshold
+            })
+            .send()?;
+        Ok(())
+    }
+
+    pub fn set_owners(
+        &self,
+        multisig: Pubkey,
+        owners: Vec<Pubkey>,
+    ) -> Result<()> {
+        let multisig_signer = Pubkey::find_program_address(
+            &[&multisig.to_bytes()],
+            &self.client.id(),
+        ).0;
+        self.client.request()
+            .accounts(serum_multisig::accounts::Auth {
+                multisig,
+                multisig_signer,
+            })
+            .args(serum_multisig::instruction::SetOwners {
+                owners,
+            })
+            .send()?;
+        Ok(())
+    }
+
+    pub fn change_threshold(
+        &self,
+        multisig: Pubkey,
+        threshold: u64,
+    ) -> Result<()> {
+        let multisig_signer = Pubkey::find_program_address(
+            &[&multisig.to_bytes()],
+            &self.client.id(),
+        ).0;
+        self.client.request()
+            .accounts(serum_multisig::accounts::Auth {
+                multisig,
+                multisig_signer,
+            })
+            .args(serum_multisig::instruction::ChangeThreshold {
+                threshold
+            })
+            .send()?;
+        Ok(())
+    }
+
     pub fn execute(
         &self,
         multisig: Pubkey,
@@ -141,7 +206,7 @@ impl MultisigGateway {
         Ok(())
     }
 
-    fn request(&self) -> RequestBuilder {
+    pub fn request(&self) -> RequestBuilder {
         RequestBuilder::from(
             self.client.id(),
             &self.cluster.url(),

@@ -589,6 +589,7 @@ dependencies = [
  "serde_json",
  "serum-multisig",
  "shellexpand",
+ "solana-logger",
  "toml",
 ]
 

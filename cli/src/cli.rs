@@ -16,6 +16,8 @@ pub enum Job {
     ProposeUpgrade(ProposeUpgrade),
     Approve(Transaction),
     Execute(Transaction),
+    GetMultisig(Key),
+    GetTransaction(Key),
 }
 
 #[derive(Clap, Debug)]
@@ -35,4 +37,9 @@ pub struct ProposeUpgrade {
 pub struct Transaction {
     pub multisig: Pubkey,
     pub transaction: Pubkey,
+}
+
+#[derive(Clap)]
+pub struct Key {
+    pub key: Pubkey,
 }
