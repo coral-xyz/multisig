@@ -189,20 +189,23 @@ impl MultisigGateway {
                 is_writable: ta.is_writable,
             })
             .collect::<Vec<AccountMeta>>();
-        self.request()
+
+        let sig = self.request()
             .accounts(serum_multisig::accounts::ExecuteTransaction {
                 multisig,
                 transaction,
                 multisig_signer,
             })
-            .remaining_accounts(account_metas)
-            .remaining_accounts(vec![AccountMeta { // multisig-ui does this for some reason?
-                pubkey: transaction,
+            .args(serum_multisig::instruction::ExecuteTransaction {})
+            .remaining_accounts(account_metas) // Include the accounts for the instruction to execute
+            .remaining_accounts(vec![AccountMeta { // Also include the program ID that executes the instruction
+                pubkey: tx.program_id,
                 is_signer: false,
                 is_writable: false,
             }])
-            .args(serum_multisig::instruction::ExecuteTransaction {})
             .send()?;
+
+        println!("confirmed: {}", sig);
         Ok(())
     }
 
