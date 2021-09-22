@@ -88,11 +88,6 @@ impl<'a> RequestBuilder<'a> {
         self
     }
 
-    pub fn remaining_accounts(mut self, mut accounts: Vec<AccountMeta>) -> Self {
-        self.accounts.append(&mut accounts);
-        self
-    }
-
     pub fn options(mut self, options: CommitmentConfig) -> Self {
         self.options = options;
         self
@@ -190,7 +185,7 @@ impl<'a> RequestBuilder<'a> {
         //     .map_err(Into::into)
     }
 
-    pub fn build(self) -> Result<Vec<Instruction>, ClientError> {
+    pub fn instructions(self) -> Result<Vec<Instruction>, ClientError> {
         let accounts = match self.namespace {
             RequestNamespace::State { new } => {
                 let mut accounts = match new {

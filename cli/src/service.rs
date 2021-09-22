@@ -1,8 +1,7 @@
-use std::io::Write;
-
 /// Extra business logic built on top of multisig program's core functionality
 
-use anchor_client::{anchor_lang::{AnchorSerialize, InstructionData}, solana_sdk::{bpf_loader_upgradeable, pubkey::Pubkey}};
+use std::io::Write;
+use anchor_client::{anchor_lang::{AnchorSerialize, InstructionData, ToAccountMetas}, solana_sdk::{bpf_loader_upgradeable, pubkey::Pubkey}};
 use anyhow::Result;
 use serum_multisig::TransactionAccount;
 
@@ -56,19 +55,26 @@ impl MultisigService {
                 }),
             (None, None) => panic!("At least one change is required"),
         };
-        let multisig_signer = Pubkey::find_program_address(
-            &[&multisig.to_bytes()],
-            &self.program.client.id(),
-        ).0;
-        let ixs = self.program.request()
-            .accounts(serum_multisig::accounts::Auth {
+        let multisig_signer = self.program.signer(multisig).0;
+        self.propose_anchor_instruction(
+            multisig,
+            serum_multisig::accounts::Auth {
                 multisig,
                 multisig_signer,
-            })
+            },
+            args
+        )
+    }
+
+    pub fn propose_anchor_instruction<A: ToAccountMetas, D: InstructionData>(
+        &self, multisig: Pubkey, accounts: A, args: D
+    ) -> Result<Pubkey> {
+        let ixs = self.program.request()
+            .accounts(accounts)
             .args(args)
-            .build()?;
+            .instructions()?;
         if ixs.len() != 1 { 
-            panic!("Incorrect number of instructions: {:?}", ixs);
+            panic!("Exactly one instruction must be provided: {:?}", ixs);
         }
         let ix = ixs[0].clone();
         self.program.create_transaction(
@@ -91,10 +97,7 @@ impl MultisigService {
         program: &Pubkey,
         buffer: &Pubkey,
     ) -> Result<Pubkey> {
-        let signer = Pubkey::find_program_address(
-            &[&multisig.to_bytes()],
-            &self.program.client.id(),
-        ).0;
+        let signer = self.program.signer(*multisig).0;
         let instruction = bpf_loader_upgradeable::upgrade(
             program,
             buffer,

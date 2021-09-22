@@ -27,16 +27,20 @@ pub struct MultisigGateway {
 }
 
 impl MultisigGateway {
+    pub fn signer(&self, multisig: Pubkey) -> (Pubkey, u8) {
+        Pubkey::find_program_address(
+            &[&multisig.to_bytes()],
+            &self.client.id(),
+        )
+    }
+
     pub fn create_multisig(
         &self,
         threshold: u64,
         owners: Vec<Pubkey>
     ) -> Result<(Pubkey, Pubkey)> {
         let multisig_acct = Keypair::generate(&mut OsRng);
-        let signer = Pubkey::find_program_address(
-            &[&multisig_acct.pubkey().to_bytes()],
-            &self.client.id(),
-        );
+        let signer = self.signer(multisig_acct.pubkey());
         self.client.request()
             .instruction(system_instruction::create_account(
                 &&self.client.payer(),
@@ -112,10 +116,7 @@ impl MultisigGateway {
         multisig: Pubkey,
         transaction: Pubkey,
     ) -> Result<()> {
-        let multisig_signer = Pubkey::find_program_address(
-            &[&multisig.to_bytes()],
-            &self.client.id(),
-        ).0;
+        let multisig_signer = self.signer(multisig).0;
         let tx: Transaction = self.client.account(transaction)?;
         let account_metas = tx.accounts.iter()
             .map(|ta| AccountMeta {
@@ -132,8 +133,8 @@ impl MultisigGateway {
                 multisig_signer,
             })
             .args(serum_multisig::instruction::ExecuteTransaction {})
-            .remaining_accounts(account_metas) // Include the accounts for the instruction to execute
-            .remaining_accounts(vec![AccountMeta { // Also include the program ID that executes the instruction
+            .accounts(account_metas) // Include the accounts for the instruction to execute
+            .accounts(vec![AccountMeta { // Also include the program ID that executes the instruction
                 pubkey: tx.program_id,
                 is_signer: false,
                 is_writable: false,
