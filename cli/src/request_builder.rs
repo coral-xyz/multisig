@@ -190,7 +190,7 @@ impl<'a> RequestBuilder<'a> {
         //     .map_err(Into::into)
     }
 
-    pub fn build(self) -> Result<Transaction, ClientError> {
+    pub fn build(self) -> Result<Vec<Instruction>, ClientError> {
         let accounts = match self.namespace {
             RequestNamespace::State { new } => {
                 let mut accounts = match new {
@@ -227,22 +227,7 @@ impl<'a> RequestBuilder<'a> {
             });
         }
 
-        let mut signers = self.signers;
-        signers.push(&self.payer);
-
-        let rpc_client = RpcClient::new_with_commitment(self.cluster, self.options);
-
-        let tx = {
-            let (recent_hash, _fee_calc) = rpc_client.get_recent_blockhash()?;
-            Transaction::new_signed_with_payer(
-                &instructions,
-                Some(&self.payer.pubkey()),
-                &signers,
-                recent_hash,
-            )
-        };
-
-        Ok(tx)
+        Ok(instructions)
     }
     
 

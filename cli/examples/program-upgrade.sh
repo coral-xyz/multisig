@@ -28,7 +28,7 @@ if [[ $do_initial_deploy == true ]]; then
 fi
 
 if [[ $new_multisig == true ]]; then
-    multisig_keys="$(multisig create-multisig $threshold "$multisig_owners")"
+    multisig_keys="$(multisig new $threshold "$multisig_owners")"
     multisig_key="$(awk '{print $1}'<<<$multisig_keys)"
     multisig_signer="$(awk '{print $2}'<<<$multisig_keys)"
     echo multisig: $multisig_key

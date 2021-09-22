@@ -58,15 +58,8 @@ fn load_service(
 
 fn run_job(job: Job, service: MultisigService) -> Result<()> {
     match job {
-        Job::CreateMultisig(cmd) => {
-            let owners =
-                cmd.owners
-                    .iter()
-                    .map(|s|
-                        Pubkey::from_str(s).expect(
-                            &format!("Invalid Pubkey: '{}'", s)))
-                    .collect();
-            let keys = service.program.create_multisig(cmd.threshold, owners)?;
+        Job::New(cmd) => {
+            let keys = service.program.create_multisig(cmd.threshold, cmd.owners)?;
             println!("{} {}", keys.0, keys.1);
         }
         Job::ProposeUpgrade(cmd) => {
@@ -89,13 +82,21 @@ fn run_job(job: Job, service: MultisigService) -> Result<()> {
                 cmd.transaction,
             )?;
         }
-        Job::GetMultisig(cmd) => {
+        Job::Get(cmd) => {
             let ms = service.program.client.account::<Multisig>(cmd.key)?;
             println!("{:?}", ms);
         }
         Job::GetTransaction(cmd) => {
             let tx = service.program.client.account::<Transaction>(cmd.key)?;
             println!("{:?}", tx);
+        }
+        Job::ProposeEdit(cmd) => {
+            let key = service.propose_set_owners_and_change_threshold(
+                cmd.multisig, 
+                cmd.threshold, 
+                cmd.owners,
+            )?;
+            println!("{}", key);
         }
     }
     Ok(())

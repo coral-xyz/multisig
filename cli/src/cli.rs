@@ -12,19 +12,29 @@ pub struct Opts {
 
 #[derive(Clap)]
 pub enum Job {
-    CreateMultisig(CreateMultisig),
-    ProposeUpgrade(ProposeUpgrade),
+    New(CreateMultisig),
     Approve(Transaction),
     Execute(Transaction),
-    GetMultisig(Key),
+    Get(Key),
     GetTransaction(Key),
+    ProposeUpgrade(ProposeUpgrade),
+    ProposeEdit(Edit),    
 }
 
 #[derive(Clap, Debug)]
 pub struct CreateMultisig {
     pub threshold: u64,
     #[clap(required = true)]
-    pub owners: Vec<String>,
+    pub owners: Vec<Pubkey>,
+}
+
+#[derive(Clap, Debug)]
+pub struct Edit {
+    pub multisig: Pubkey,
+    #[clap(long)]
+    pub threshold: Option<u64>,
+    #[clap(long)]
+    pub owners: Option<Vec<Pubkey>>,
 }
 
 #[derive(Clap)]
