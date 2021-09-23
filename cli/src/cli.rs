@@ -18,7 +18,8 @@ pub enum Job {
     Get(Key),
     GetTransaction(Key),
     ProposeUpgrade(ProposeUpgrade),
-    ProposeEdit(Edit),    
+    ProposeEdit(Edit),
+    ProposeGenerateTokenMint(Key),
 }
 
 #[derive(Clap, Debug)]

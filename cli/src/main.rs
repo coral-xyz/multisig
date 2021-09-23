@@ -1,4 +1,5 @@
 extern crate clap;
+extern crate custody;
 extern crate anchor_client;
 extern crate anyhow;
 extern crate rand;
@@ -110,6 +111,10 @@ fn run_job(job: Job, service: MultisigService) -> Result<()> {
                 cmd.threshold, 
                 cmd.owners,
             )?;
+            println!("{}", key);
+        }
+        Job::ProposeGenerateTokenMint(cmd) => {
+            let key = service.propose_generate_token_mint(cmd.key)?;
             println!("{}", key);
         }
     }

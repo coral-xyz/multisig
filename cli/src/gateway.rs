@@ -6,7 +6,7 @@ extern crate rand;
 extern crate serum_multisig;
 
 
-use anchor_client::solana_sdk::instruction::AccountMeta;
+use anchor_client::solana_sdk::instruction::{AccountMeta};
 use anchor_client::{Cluster, Program, RequestNamespace};
 use anchor_client::solana_sdk::{
     pubkey::Pubkey,
@@ -65,14 +65,15 @@ impl<'a> MultisigGateway<'a> {
 
     pub fn create_transaction(
         &self,
+        builder: Option<RequestBuilder>,
         multisig: Pubkey,
         pid: Pubkey,
         accs: Vec<TransactionAccount>,
         data: Vec<u8>,
     ) -> Result<Pubkey> {
+        let builder = builder.unwrap_or_else(||self.request());
         let tx_acct = Keypair::generate(&mut OsRng);
-        self.request()
-            .instruction(system_instruction::create_account(
+        builder.instruction(system_instruction::create_account(
                 &&self.payer.pubkey(),
                 &tx_acct.pubkey(),
                 self.client.rpc().get_minimum_balance_for_rent_exemption(500)?,

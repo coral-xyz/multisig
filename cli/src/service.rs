@@ -1,11 +1,24 @@
 /// Extra business logic built on top of multisig program's core functionality
 
 use std::io::Write;
-use anchor_client::{anchor_lang::{AnchorSerialize, InstructionData, ToAccountMetas}, solana_sdk::{bpf_loader_upgradeable, pubkey::Pubkey}};
+use anchor_client::{
+    anchor_lang::{AnchorSerialize, InstructionData, ToAccountMetas},
+    solana_sdk::{
+        bpf_loader_upgradeable,
+        pubkey::Pubkey,
+        signature::Keypair,
+        signer::Signer,
+        system_instruction,
+        system_program,
+        sysvar
+    }
+};
 use anyhow::Result;
+use custody::GenerateTokenBumpSeeds;
+use rand::rngs::OsRng;
 use serum_multisig::TransactionAccount;
 
-use crate::gateway::MultisigGateway;
+use crate::{gateway::MultisigGateway, request_builder::RequestBuilder};
 
 
 pub struct MultisigService<'a> {
@@ -33,6 +46,62 @@ impl InstructionData for DynamicInstructionData {
 }
 
 impl<'a> MultisigService<'a> {
+    pub fn propose_generate_token_mint(&self, multisig: Pubkey) -> Result<Pubkey> {
+        let mint = Keypair::generate(&mut OsRng);
+        let signer = Pubkey::find_program_address(
+            &[b"signer"],
+            &self.program.client.id(),
+        ).0;
+        let getaddr = |seed: &[u8]| Pubkey::find_program_address(
+            &[seed, mint.pubkey().as_ref()],
+            &self.program.client.id(),
+        );
+        let seed_vault = getaddr(b"seed-vault");
+        let team_vault = getaddr(b"team-vault");
+        let d_vault = getaddr(b"d-vault");
+        let e_vault = getaddr(b"e-vault");
+        println!("mint {}\nsigner {}\nseed {}\nteam {}\nd {}\ne {}",
+            mint.pubkey(), signer, seed_vault.0, team_vault.0, d_vault.0, e_vault.0);
+
+        let builder = self.program.request()
+            .instruction(
+                system_instruction::create_account(
+                    &&self.program.payer.pubkey(),
+                    &mint.pubkey(),
+                    self.program.client.rpc().get_minimum_balance_for_rent_exemption(500)?,
+                    500,
+                    &&self.program.client.id(),
+                )
+            )
+            .signer(&mint);
+
+        self.propose_anchor_instruction(
+            Some(builder),
+            multisig,
+            custody::id(),
+            custody::accounts::GenerateTokenMint {
+                mint: mint.pubkey(),
+                seed_vault: seed_vault.0,
+                team_vault: team_vault.0,
+                d_vault: d_vault.0,
+                e_vault: e_vault.0,
+                payer: self.program.payer.pubkey(),
+                rent: sysvar::rent::ID,
+                signer,
+                system_program: system_program::id(),
+                token_program: anchor_spl::token::ID,
+            },
+            custody::instruction::GenerateTokenMint {
+                _bump: GenerateTokenBumpSeeds {
+                    seed_vault: seed_vault.1,
+                    team_vault: team_vault.1,
+                    d_vault: d_vault.1,
+                    e_vault: e_vault.1,
+                }
+            },
+        )
+    }
+
     pub fn propose_set_owners_and_change_threshold(
         &self,
         multisig: Pubkey,
@@ -57,7 +126,9 @@ impl<'a> MultisigService<'a> {
         };
         let multisig_signer = self.program.signer(multisig).0;
         self.propose_anchor_instruction(
+            None,
             multisig,
+            self.program.client.id(),
             serum_multisig::accounts::Auth {
                 multisig,
                 multisig_signer,
@@ -67,7 +138,12 @@ impl<'a> MultisigService<'a> {
     }
 
     pub fn propose_anchor_instruction<A: ToAccountMetas, D: InstructionData>(
-        &self, multisig: Pubkey, accounts: A, args: D
+        &self, 
+        builder: Option<RequestBuilder>, 
+        multisig: Pubkey, 
+        pid: Pubkey,
+        accounts: A, 
+        args: D
     ) -> Result<Pubkey> {
         let ixs = self.program.request()
             .accounts(accounts)
@@ -78,8 +154,9 @@ impl<'a> MultisigService<'a> {
         }
         let ix = ixs[0].clone();
         self.program.create_transaction(
+            builder,
             multisig,
-            self.program.client.id(),
+            pid,
             ix.accounts.iter().map(|account_meta|
                 TransactionAccount {
                     pubkey: account_meta.pubkey,
@@ -112,6 +189,7 @@ impl<'a> MultisigService<'a> {
             })
             .collect::<Vec<TransactionAccount>>();
         self.program.create_transaction(
+            None,
             *multisig,
             instruction.program_id,
             accounts,
