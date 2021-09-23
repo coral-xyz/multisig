@@ -24,6 +24,7 @@ pub enum Job {
     ProposeMintTokens(TokenAction),
     ProposeTransferTokens(TokenAction),
     ProposeCustodyGenerateTokenMint(GenerateTokens),
+    ProposeCustodyTransferTokens(TokenAction),
 }
 
 #[derive(Clap, Debug)]
@@ -52,8 +53,14 @@ pub struct ProposeUpgrade {
 #[derive(Clap)]
 pub struct TokenAction {
     pub multisig: Pubkey,
+
+    #[clap(long, short)]
     pub source: Pubkey,
+
+    #[clap(long, short)]
     pub target: Pubkey,
+
+    #[clap(long, short)]
     pub amount: u64,
 }
 

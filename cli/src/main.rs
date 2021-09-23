@@ -99,7 +99,9 @@ fn run_job(job: Job, service: MultisigService) -> Result<()> {
         }
         Job::Get(cmd) => {
             let ms = service.program.client.account::<Multisig>(cmd.key)?;
+            let signer = service.program.signer(cmd.key).0;
             println!("{:?}", ms);
+            println!("signer = {:?}", signer);
         }
         Job::GetTransaction(cmd) => {
             let tx = service.program.client.account::<Transaction>(cmd.key)?;
@@ -129,6 +131,15 @@ fn run_job(job: Job, service: MultisigService) -> Result<()> {
         }
         Job::ProposeCustodyGenerateTokenMint(cmd) => {
             let key = service.propose_custody_generate_token_mint(cmd.multisig, cmd.mint_key)?;
+            println!("{}", key);
+        }
+        Job::ProposeCustodyTransferTokens(cmd) => {
+            let key = service.propose_custody_transfer_tokens(
+                cmd.multisig,
+                cmd.source,
+                cmd.target,
+                cmd.amount,
+            )?;
             println!("{}", key);
         }
     }

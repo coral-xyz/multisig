@@ -151,6 +151,31 @@ impl<'a> MultisigService<'a> {
         )
     }
 
+    pub fn propose_custody_transfer_tokens(
+        &self,
+        multisig: Pubkey,
+        source: Pubkey,
+        target: Pubkey,
+        amount: u64,
+    ) -> Result<Pubkey> {
+        let custody_signer = Pubkey::find_program_address(&[b"signer"], &custody::id()).0;
+        let multisig_signer = self.program.signer(multisig).0;
+
+        self.propose_anchor_instruction(
+            None,
+            multisig,
+            custody::id(),
+            custody::accounts::TransferFunds {
+                vault: source,
+                to: target,
+                signer: custody_signer,
+                authority: multisig_signer,
+                token_program: token::ID,
+            },
+            custody::instruction::TransferFunds { amount },
+        )
+    }
+
     pub fn propose_set_owners_and_change_threshold(
         &self,
         multisig: Pubkey,
