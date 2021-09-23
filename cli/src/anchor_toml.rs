@@ -2,10 +2,9 @@ use anchor_client::Cluster;
 use anyhow::Result;
 use serde_derive::Deserialize;
 
-
 pub fn load(path: &str) -> Result<AnchorToml> {
-    let conf_str = std::fs::read_to_string(path)
-        .expect(&format!("Could not load Anchor.toml at {}", path));
+    let conf_str =
+        std::fs::read_to_string(path).expect(&format!("Could not load Anchor.toml at {}", path));
     let config: AnchorToml = toml::from_str(&conf_str)?;
     return Ok(config);
 }

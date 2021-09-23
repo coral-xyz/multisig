@@ -11,12 +11,15 @@ extern crate clap2;
 
 use std::str::FromStr;
 
-use anchor_client::{Cluster, solana_sdk::{pubkey::Pubkey, signature::Keypair, signer::Signer}};
+use anchor_client::{
+    solana_sdk::{pubkey::Pubkey, signature::Keypair, signer::Signer},
+    Cluster,
+};
 use anyhow::Result;
 
-use clap::{Clap};
+use clap::Clap;
 use clap2::ArgMatches;
-use cli::{Opts, Job};
+use cli::{Job, Opts};
 use gateway::MultisigGateway;
 use rand::rngs::OsRng;
 use serum_multisig::{Multisig, Transaction};
@@ -24,12 +27,11 @@ use service::MultisigService;
 use solana_clap_utils::keypair::DefaultSigner;
 use solana_remote_wallet::remote_wallet::maybe_wallet_manager;
 
-mod gateway;
-mod cli;
 mod anchor_toml;
-mod service;
+mod cli;
+mod gateway;
 mod request_builder;
-
+mod service;
 
 fn main() -> Result<()> {
     solana_logger::setup_with_default("solana=debug");
@@ -39,14 +41,14 @@ fn main() -> Result<()> {
         Cluster::Mainnet => anchor_toml.programs.mainnet.serum_multisig,
         Cluster::Devnet => anchor_toml.programs.devnet.serum_multisig,
         Cluster::Localnet => anchor_toml.programs.localnet.unwrap().serum_multisig,
-        _ => panic!("Code currently cannot handle this cluster: {}", anchor_toml.provider.cluster)
-    }).expect("Invalid multisig program id");
+        _ => panic!(
+            "Code currently cannot handle this cluster: {}",
+            anchor_toml.provider.cluster
+        ),
+    })
+    .expect("Invalid multisig program id");
     let payer = load_payer(&anchor_toml.provider.wallet);
-    let service = load_service(
-        anchor_toml.provider.cluster,
-        program_id,
-        &*payer,
-    )?;
+    let service = load_service(anchor_toml.provider.cluster, program_id, &*payer)?;
     run_job(cli_opts.job, service)
 }
 
@@ -55,7 +57,9 @@ fn load_payer(path: &str) -> Box<dyn Signer> {
     let mut wallet_manager = maybe_wallet_manager().unwrap();
     let default_signer = DefaultSigner::new("keypair".to_string(), path);
     let arg_matches = ArgMatches::default();
-    default_signer.signer_from_path(&arg_matches, &mut wallet_manager).unwrap()
+    default_signer
+        .signer_from_path(&arg_matches, &mut wallet_manager)
+        .unwrap()
 }
 
 fn load_service<'a>(
@@ -68,7 +72,13 @@ fn load_service<'a>(
     let connection = anchor_client::Client::new(cluster.clone(), keypair);
     let client = connection.program(program_id);
 
-    Ok(MultisigService { program: MultisigGateway { client, cluster, payer } })
+    Ok(MultisigService {
+        program: MultisigGateway {
+            client,
+            cluster,
+            payer,
+        },
+    })
 }
 
 fn run_job(job: Job, service: MultisigService) -> Result<()> {
@@ -78,24 +88,14 @@ fn run_job(job: Job, service: MultisigService) -> Result<()> {
             println!("{} {}", keys.0, keys.1);
         }
         Job::ProposeUpgrade(cmd) => {
-            let key = service.propose_upgrade(
-                &cmd.multisig, 
-                &cmd.program, 
-                &cmd.buffer,
-            )?;
+            let key = service.propose_upgrade(&cmd.multisig, &cmd.program, &cmd.buffer)?;
             println!("{}", key);
         }
         Job::Approve(cmd) => {
-            service.program.approve(
-                cmd.multisig, 
-                cmd.transaction,
-            )?;
+            service.program.approve(cmd.multisig, cmd.transaction)?;
         }
         Job::Execute(cmd) => {
-            service.program.execute(
-                cmd.multisig, 
-                cmd.transaction,
-            )?;
+            service.program.execute(cmd.multisig, cmd.transaction)?;
         }
         Job::Get(cmd) => {
             let ms = service.program.client.account::<Multisig>(cmd.key)?;
@@ -107,19 +107,15 @@ fn run_job(job: Job, service: MultisigService) -> Result<()> {
         }
         Job::ProposeEdit(cmd) => {
             let key = service.propose_set_owners_and_change_threshold(
-                cmd.multisig, 
-                cmd.threshold, 
+                cmd.multisig,
+                cmd.threshold,
                 cmd.owners,
             )?;
             println!("{}", key);
         }
         Job::ProposeMintTokens(cmd) => {
-            let key = service.propose_mint_tokens(
-                cmd.multisig,
-                cmd.source,
-                cmd.target,
-                cmd.amount,
-            )?;
+            let key =
+                service.propose_mint_tokens(cmd.multisig, cmd.source, cmd.target, cmd.amount)?;
             println!("{}", key);
         }
         Job::ProposeTransferTokens(cmd) => {

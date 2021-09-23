@@ -1,9 +1,5 @@
 #![allow(dead_code, unused_variables, unused_imports)]
 
-
-use anchor_client::ClientError;
-use anchor_client::Program;
-use anchor_client::RequestNamespace;
 use anchor_client::anchor_lang;
 use anchor_client::anchor_lang::InstructionData;
 use anchor_client::anchor_lang::ToAccountMetas;
@@ -21,9 +17,11 @@ use anchor_client::solana_sdk::signature::{Keypair, Signer};
 use anchor_client::solana_sdk::system_instruction;
 use anchor_client::solana_sdk::system_program;
 use anchor_client::solana_sdk::sysvar;
-use anchor_client::Client;
 use anchor_client::solana_sdk::transaction::Transaction;
-
+use anchor_client::Client;
+use anchor_client::ClientError;
+use anchor_client::Program;
+use anchor_client::RequestNamespace;
 
 /// `RequestBuilder` provides a builder interface to create and send
 /// transactions to a cluster.
@@ -165,20 +163,22 @@ impl<'a> RequestBuilder<'a> {
 
         let mut config = RpcSendTransactionConfig::default();
         config.skip_preflight = true;
-        
+
         // rpc_client
-            // .send_transaction_with_config(&tx, config)
+        // .send_transaction_with_config(&tx, config)
         //     .map_err(Into::into);
         let commitment = match config.preflight_commitment {
             Some(c) => c,
-            _ => CommitmentLevel::Processed
+            _ => CommitmentLevel::Processed,
         };
 
-        rpc_client.send_and_confirm_transaction_with_spinner_and_config(
-            &tx,
-            CommitmentConfig { commitment },
-            config,
-        ).map_err(Into::into)
+        rpc_client
+            .send_and_confirm_transaction_with_spinner_and_config(
+                &tx,
+                CommitmentConfig { commitment },
+                config,
+            )
+            .map_err(Into::into)
 
         // rpc_client
         //     .send_and_confirm_transaction(&tx)
@@ -224,9 +224,6 @@ impl<'a> RequestBuilder<'a> {
 
         Ok(instructions)
     }
-    
 
-    fn rpc_snd() {
-        
-    }
+    fn rpc_snd() {}
 }
