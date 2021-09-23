@@ -128,7 +128,7 @@ fn run_job(job: Job, service: MultisigService) -> Result<()> {
             println!("{}", key);
         }
         Job::ProposeCustodyGenerateTokenMint(cmd) => {
-            let key = service.propose_custody_generate_token_mint(cmd.key)?;
+            let key = service.propose_custody_generate_token_mint(cmd.multisig, cmd.mint_key)?;
             println!("{}", key);
         }
     }

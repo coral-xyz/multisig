@@ -2,16 +2,16 @@ use anchor_client::{
     anchor_lang::{AnchorSerialize, InstructionData, ToAccountMetas},
     solana_sdk::{
         bpf_loader_upgradeable, instruction::Instruction, pubkey::Pubkey, signature::Keypair,
-        signer::Signer, system_instruction, system_program, sysvar,
+        signer, signer::Signer, system_instruction, system_program, sysvar,
     },
 };
 use anchor_spl::token::{self, Mint};
-use anyhow::Result;
+use anyhow::{bail, Result};
 use custody::GenerateTokenBumpSeeds;
 use rand::rngs::OsRng;
 use serum_multisig::TransactionAccount;
 /// Extra business logic built on top of multisig program's core functionality
-use std::io::Write;
+use std::{io::Write, path::PathBuf};
 
 use crate::{gateway::MultisigGateway, request_builder::RequestBuilder};
 
@@ -78,8 +78,19 @@ impl<'a> MultisigService<'a> {
         self.propose_solana_instruction(&multisig, ix)
     }
 
-    pub fn propose_custody_generate_token_mint(&self, multisig: Pubkey) -> Result<Pubkey> {
-        let mint = Keypair::generate(&mut OsRng);
+    pub fn propose_custody_generate_token_mint(
+        &self,
+        multisig: Pubkey,
+        mint_key: PathBuf,
+    ) -> Result<Pubkey> {
+        let mint = match signer::keypair::read_keypair_file(&mint_key) {
+            Ok(m) => m,
+            Err(e) => bail!(
+                "couldn't load mint key '{}', because: {:?}",
+                mint_key.display(),
+                e
+            ),
+        };
         let signer = Pubkey::find_program_address(&[b"signer"], &custody::id()).0;
         let getaddr = |seed: &[u8]| {
             Pubkey::find_program_address(&[seed, mint.pubkey().as_ref()], &custody::id())

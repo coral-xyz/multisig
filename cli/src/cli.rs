@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use anchor_client::solana_sdk::pubkey::Pubkey;
 use clap::{AppSettings, Clap};
 
@@ -21,7 +23,7 @@ pub enum Job {
     ProposeEdit(Edit),
     ProposeMintTokens(TokenAction),
     ProposeTransferTokens(TokenAction),
-    ProposeCustodyGenerateTokenMint(Key),
+    ProposeCustodyGenerateTokenMint(GenerateTokens),
 }
 
 #[derive(Clap, Debug)]
@@ -64,4 +66,12 @@ pub struct Transaction {
 #[derive(Clap)]
 pub struct Key {
     pub key: Pubkey,
+}
+
+#[derive(Clap)]
+pub struct GenerateTokens {
+    pub multisig: Pubkey,
+
+    #[clap(long, short = 'k')]
+    pub mint_key: PathBuf,
 }
