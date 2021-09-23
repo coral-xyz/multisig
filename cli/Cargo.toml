@@ -4,7 +4,7 @@ version = "0.1.0"
 
 
 [dependencies]
-anchor-client = "0.14.0"
+anchor-client = "0.16.1"
 serum-multisig = { path = "../programs/multisig", features = ["no-entrypoint"]  }
 shellexpand = "2.1.0"
 anyhow = "1.0.32"
