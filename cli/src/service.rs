@@ -1,8 +1,8 @@
 use anchor_client::{
     anchor_lang::{AnchorSerialize, InstructionData, ToAccountMetas},
     solana_sdk::{
-        bpf_loader_upgradeable, instruction::Instruction, pubkey::Pubkey,
-        signer, signer::Signer, system_instruction, system_program, sysvar,
+        bpf_loader_upgradeable, instruction::Instruction, pubkey::Pubkey, signer, signer::Signer,
+        system_instruction, system_program, sysvar,
     },
 };
 use anchor_spl::token::{self, Mint};

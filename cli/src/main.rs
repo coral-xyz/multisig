@@ -89,12 +89,12 @@ fn run_job(job: Job, service: MultisigService) -> Result<()> {
         Job::Get(cmd) => {
             let ms = service.program.client.account::<Multisig>(cmd.key)?;
             let signer = service.program.signer(cmd.key).0;
-            println!("{:?}", ms);
+            println!("{:#?}", ms);
             println!("signer = {:?}", signer);
         }
         Job::GetTransaction(cmd) => {
             let tx = service.program.client.account::<Transaction>(cmd.key)?;
-            println!("{:?}", tx);
+            println!("{:#?}", tx);
         }
         Job::ProposeEdit(cmd) => {
             let key = service.propose_set_owners_and_change_threshold(
