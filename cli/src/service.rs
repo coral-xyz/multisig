@@ -1,18 +1,7 @@
 /// Extra business logic built on top of multisig program's core functionality
 
 use std::io::Write;
-use anchor_client::{
-    anchor_lang::{AnchorSerialize, InstructionData, ToAccountMetas},
-    solana_sdk::{
-        bpf_loader_upgradeable,
-        pubkey::Pubkey,
-        signature::Keypair,
-        signer::Signer,
-        system_instruction,
-        system_program,
-        sysvar
-    }
-};
+use anchor_client::{anchor_lang::{AnchorSerialize, InstructionData, ToAccountMetas}, solana_sdk::{bpf_loader_upgradeable, instruction::Instruction, pubkey::Pubkey, signature::Keypair, signer::Signer, system_instruction, system_program, sysvar}};
 use anyhow::Result;
 use custody::GenerateTokenBumpSeeds;
 use rand::rngs::OsRng;
@@ -46,7 +35,45 @@ impl InstructionData for DynamicInstructionData {
 }
 
 impl<'a> MultisigService<'a> {
-    pub fn propose_generate_token_mint(&self, multisig: Pubkey) -> Result<Pubkey> {
+    pub fn propose_mint_tokens(
+        &self,
+        multisig: Pubkey,
+        mint: Pubkey,
+        target: Pubkey,
+        amount: u64,
+    ) -> Result<Pubkey> {
+        let signer = self.program.signer(multisig).0;
+        let ix = spl_token::instruction::mint_to(
+            &spl_token::id(),
+            &mint,
+            &target,
+            &signer,
+            &vec![&signer],
+            amount,
+        )?;
+        self.propose_solana_instruction(&multisig, ix)
+    }
+
+    pub fn propose_transfer_tokens(
+        &self,
+        multisig: Pubkey,
+        source: Pubkey,
+        target: Pubkey,
+        amount: u64,
+    ) -> Result<Pubkey> {
+        let signer = self.program.signer(multisig).0;
+        let ix = spl_token::instruction::transfer(
+            &spl_token::id(),
+            &source,
+            &target,
+            &signer,
+            &vec![&signer],
+            amount,
+        )?;
+        self.propose_solana_instruction(&multisig, ix)
+    }
+
+    pub fn propose_custody_generate_token_mint(&self, multisig: Pubkey) -> Result<Pubkey> {
         let mint = Keypair::generate(&mut OsRng);
         let signer = Pubkey::find_program_address(
             &[b"signer"],
@@ -181,6 +208,14 @@ impl<'a> MultisigService<'a> {
             &signer,
             &self.program.payer.pubkey(),
         );
+        self.propose_solana_instruction(multisig, instruction)
+    }
+
+    pub fn propose_solana_instruction(
+        &self,
+        multisig: &Pubkey,
+        instruction: Instruction,
+    ) -> Result<Pubkey> {
         let accounts = instruction.accounts.iter()
             .map(|account_meta| TransactionAccount {
                 pubkey: account_meta.pubkey,

@@ -113,8 +113,26 @@ fn run_job(job: Job, service: MultisigService) -> Result<()> {
             )?;
             println!("{}", key);
         }
-        Job::ProposeGenerateTokenMint(cmd) => {
-            let key = service.propose_generate_token_mint(cmd.key)?;
+        Job::ProposeMintTokens(cmd) => {
+            let key = service.propose_mint_tokens(
+                cmd.multisig,
+                cmd.source,
+                cmd.target,
+                cmd.amount,
+            )?;
+            println!("{}", key);
+        }
+        Job::ProposeTransferTokens(cmd) => {
+            let key = service.propose_transfer_tokens(
+                cmd.multisig,
+                cmd.source,
+                cmd.target,
+                cmd.amount,
+            )?;
+            println!("{}", key);
+        }
+        Job::ProposeCustodyGenerateTokenMint(cmd) => {
+            let key = service.propose_custody_generate_token_mint(cmd.key)?;
             println!("{}", key);
         }
     }

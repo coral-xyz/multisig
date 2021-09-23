@@ -6,6 +6,7 @@ version = "0.1.0"
 [dependencies]
 anchor-client = "0.16.1"
 anchor-spl = "0.16.1"
+spl-token = "3.2.0"
 serum-multisig = { path = "../programs/multisig", features = ["no-entrypoint"]  }
 custody = { path = "../../custody/programs/custody", features = ["no-entrypoint"]  }
 shellexpand = "2.1.0"

@@ -622,6 +622,7 @@ dependencies = [
  "solana-clap-utils",
  "solana-logger",
  "solana-remote-wallet",
+ "spl-token",
  "toml",
 ]
 
