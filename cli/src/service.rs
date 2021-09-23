@@ -1,14 +1,13 @@
 use anchor_client::{
     anchor_lang::{AnchorSerialize, InstructionData, ToAccountMetas},
     solana_sdk::{
-        bpf_loader_upgradeable, instruction::Instruction, pubkey::Pubkey, signature::Keypair,
+        bpf_loader_upgradeable, instruction::Instruction, pubkey::Pubkey,
         signer, signer::Signer, system_instruction, system_program, sysvar,
     },
 };
 use anchor_spl::token::{self, Mint};
 use anyhow::{bail, Result};
 use custody::GenerateTokenBumpSeeds;
-use rand::rngs::OsRng;
 use serum_multisig::TransactionAccount;
 /// Extra business logic built on top of multisig program's core functionality
 use std::{io::Write, path::PathBuf};

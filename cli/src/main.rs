@@ -1,14 +1,3 @@
-extern crate clap;
-extern crate custody;
-extern crate anchor_client;
-extern crate anyhow;
-extern crate rand;
-extern crate serum_multisig;
-extern crate serde_derive;
-extern crate solana_clap_utils;
-extern crate solana_remote_wallet;
-extern crate clap2;
-
 use std::str::FromStr;
 
 use anchor_client::{
