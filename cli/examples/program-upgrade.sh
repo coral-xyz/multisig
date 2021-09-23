@@ -4,9 +4,7 @@
 # 3. Upgrades the program using multisig.
 set -euxo pipefail
 
-multisig() { 
-    cargo run -- $@
-}
+. $(dirname ${BASH_SOURCE[0]})/build.sh
 
 # Config
 cluster=l

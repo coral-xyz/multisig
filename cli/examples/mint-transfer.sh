@@ -1,9 +1,6 @@
 set -euxo pipefail
 
-multisig() { 
-    cargo run -- $@
-}
-
+. $(dirname ${BASH_SOURCE[0]})/build.sh
 
 # owners='8ry8MXxB1HGCrELqxvhj3KfySE9GDaUgNB9HuBXDsmJR'
 owners=FN5e1jY4DL94F74HutsgMvYoeaC9Sa2ve3qtpjZL5HF1
