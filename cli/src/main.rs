@@ -4,17 +4,24 @@ extern crate anyhow;
 extern crate rand;
 extern crate serum_multisig;
 extern crate serde_derive;
+extern crate solana_clap_utils;
+extern crate solana_remote_wallet;
+extern crate clap2;
 
 use std::str::FromStr;
 
-use anchor_client::{Cluster, solana_sdk::{pubkey::Pubkey, signature::read_keypair_file}};
+use anchor_client::{Cluster, solana_sdk::{pubkey::Pubkey, signature::Keypair, signer::Signer}};
 use anyhow::Result;
 
-use clap::Clap;
+use clap::{Clap};
+use clap2::ArgMatches;
 use cli::{Opts, Job};
 use gateway::MultisigGateway;
+use rand::rngs::OsRng;
 use serum_multisig::{Multisig, Transaction};
 use service::MultisigService;
+use solana_clap_utils::keypair::DefaultSigner;
+use solana_remote_wallet::remote_wallet::maybe_wallet_manager;
 
 mod gateway;
 mod cli;
@@ -33,27 +40,34 @@ fn main() -> Result<()> {
         Cluster::Localnet => anchor_toml.programs.localnet.unwrap().serum_multisig,
         _ => panic!("Code currently cannot handle this cluster: {}", anchor_toml.provider.cluster)
     }).expect("Invalid multisig program id");
+    let payer = load_payer(&anchor_toml.provider.wallet);
     let service = load_service(
         anchor_toml.provider.cluster,
         program_id,
-        &anchor_toml.provider.wallet,
+        &*payer,
     )?;
     run_job(cli_opts.job, service)
 }
 
-fn load_service(
+fn load_payer(path: &str) -> Box<dyn Signer> {
+    let path = &*shellexpand::tilde(path);
+    let mut wallet_manager = maybe_wallet_manager().unwrap();
+    let default_signer = DefaultSigner::new("keypair".to_string(), path);
+    let arg_matches = ArgMatches::default();
+    default_signer.signer_from_path(&arg_matches, &mut wallet_manager).unwrap()
+}
+
+fn load_service<'a>(
     cluster: Cluster,
     program_id: Pubkey,
-    keypair_path: &str,
-) -> Result<MultisigService> {
-    let keypair = read_keypair_file(&*shellexpand::tilde(keypair_path))
-        .expect(&format!("Invalid keypair file {}", keypair_path));
+    payer: &'a dyn Signer,
+) -> Result<MultisigService<'a>> {
+    // todo change anchor to use Signer so we don't need this dummy keypair that we have to be careful not to use
+    let keypair = Keypair::generate(&mut OsRng);
     let connection = anchor_client::Client::new(cluster.clone(), keypair);
     let client = connection.program(program_id);
-    let keypair = read_keypair_file(&*shellexpand::tilde(keypair_path))
-        .expect(&format!("Invalid keypair file {}", keypair_path));
 
-    Ok(MultisigService { program: MultisigGateway { client, cluster, keypair } })
+    Ok(MultisigService { program: MultisigGateway { client, cluster, payer } })
 }
 
 fn run_job(job: Job, service: MultisigService) -> Result<()> {

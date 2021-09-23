@@ -33,7 +33,7 @@ pub struct RequestBuilder<'a> {
     accounts: Vec<AccountMeta>,
     options: CommitmentConfig,
     instructions: Vec<Instruction>,
-    payer: Keypair,
+    payer: &'a dyn Signer,
     // Serialized instruction data for the target RPC.
     instruction_data: Option<Vec<u8>>,
     signers: Vec<&'a dyn Signer>,
@@ -45,7 +45,7 @@ impl<'a> RequestBuilder<'a> {
     pub fn from(
         program_id: Pubkey,
         cluster: &str,
-        payer: Keypair,
+        payer: &'a dyn Signer,
         options: Option<CommitmentConfig>,
         namespace: RequestNamespace,
     ) -> Self {
@@ -62,7 +62,7 @@ impl<'a> RequestBuilder<'a> {
         }
     }
 
-    pub fn payer(mut self, payer: Keypair) -> Self {
+    pub fn payer(mut self, payer: &'a dyn Signer) -> Self {
         self.payer = payer;
         self
     }
@@ -149,7 +149,7 @@ impl<'a> RequestBuilder<'a> {
         }
 
         let mut signers = self.signers;
-        signers.push(&self.payer);
+        signers.push(self.payer);
 
         let rpc_client = RpcClient::new_with_commitment(self.cluster, self.options);
 

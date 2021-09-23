@@ -15,3 +15,6 @@ serde = "1.0"
 serde_json = "1.0"
 clap = "3.0.0-beta.4"
 solana-logger = "1.7.11"
+solana-remote-wallet = "1.7.11"
+solana-clap-utils = "1.7.11"
+clap2 = { package = "clap", version = "2.33.0" }

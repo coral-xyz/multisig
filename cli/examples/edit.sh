@@ -10,7 +10,7 @@ initial_threshold=1
 final_owners='11111111111111111111111111111111 FN5e1jY4DL94F74HutsgMvYoeaC9Sa2ve3qtpjZL5HF1'
 final_threshold=2
 
-multisig=$(awk '{print $1}'<<<$(multisig new $initial_threshold $initial_owners))
+multisig=$(awk 'END{print $1}'<<<$(multisig new $initial_threshold $initial_owners))
 echo multisig $multisig
 tx=$(multisig propose-edit $multisig --owners $final_owners --threshold $final_threshold)
 echo tx $tx

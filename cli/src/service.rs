@@ -8,8 +8,8 @@ use serum_multisig::TransactionAccount;
 use crate::gateway::MultisigGateway;
 
 
-pub struct MultisigService {
-    pub program: MultisigGateway
+pub struct MultisigService<'a> {
+    pub program: MultisigGateway<'a>
 }
 
 struct DynamicInstructionData {
@@ -32,7 +32,7 @@ impl InstructionData for DynamicInstructionData {
     }
 }
 
-impl MultisigService {
+impl<'a> MultisigService<'a> {
     pub fn propose_set_owners_and_change_threshold(
         &self,
         multisig: Pubkey,
@@ -102,7 +102,7 @@ impl MultisigService {
             program,
             buffer,
             &signer,
-            &self.program.client.payer(),
+            &self.program.payer.pubkey(),
         );
         let accounts = instruction.accounts.iter()
             .map(|account_meta| TransactionAccount {

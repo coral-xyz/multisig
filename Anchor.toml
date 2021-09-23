@@ -1,8 +1,10 @@
 anchor_version = "0.14.0"
 
 [provider]
-cluster = "Devnet"
+cluster = "Localnet"
+# wallet = "usb://ledger?key=0"
 wallet = "~/.config/solana/id.json"
+
 
 [programs.mainnet]
 serum_multisig = "6tbPiQLgTU4ySYWyZGXbnVSAEzLc1uF8t5kJPXXgBmRP"

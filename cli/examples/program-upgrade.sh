@@ -10,10 +10,11 @@ multisig() {
 
 # Config
 cluster=l
-new_multisig=false
-do_initial_deploy=false
+new_multisig=true
+do_initial_deploy=true
 upgrade_file=/home/drew/mine/jet/code/jet-protocol/target/deploy/jet.so
-multisig_owners='FN5e1jY4DL94F74HutsgMvYoeaC9Sa2ve3qtpjZL5HF1'
+# multisig_owners='FN5e1jY4DL94F74HutsgMvYoeaC9Sa2ve3qtpjZL5HF1'
+multisig_owners=8ry8MXxB1HGCrELqxvhj3KfySE9GDaUgNB9HuBXDsmJR
 threshold=1
 
 # Defaults (may be overridden depending on config)
@@ -29,8 +30,8 @@ fi
 
 if [[ $new_multisig == true ]]; then
     multisig_keys="$(multisig new $threshold "$multisig_owners")"
-    multisig_key="$(awk '{print $1}'<<<$multisig_keys)"
-    multisig_signer="$(awk '{print $2}'<<<$multisig_keys)"
+    multisig_key="$(awk 'END{print $1}'<<<$multisig_keys)"
+    multisig_signer="$(awk 'END{print $2}'<<<$multisig_keys)"
     echo multisig: $multisig_key
     echo signer: $multisig_signer
     solana program -u$cluster set-upgrade-authority $jet_program_id --new-upgrade-authority "$multisig_signer"
@@ -39,7 +40,7 @@ fi
 buffer="$(solana program -u$cluster write-buffer "$upgrade_file" | awk '{print $2}')"
 solana program -u$cluster set-buffer-authority "$buffer" --new-buffer-authority "$multisig_signer"
 echo buffer $buffer
-transaction="$(multisig propose-upgrade $multisig_key $jet_program_id $buffer)"
+transaction="$(multisig propose-upgrade $multisig_key $jet_program_id $buffer | tail -n1)"
 echo tx $transaction
 echo 'sleeping so network can reconcile account ownership (not sure why this is necessary but it never works immediately)'
 sleep 14

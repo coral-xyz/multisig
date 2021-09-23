@@ -18,7 +18,7 @@ pub struct AnchorToml {
 
 #[derive(Deserialize, Debug)]
 pub struct Provider {
-    pub cluster: Cluster,
+    pub cluster: Cluster, //todo better parser
     pub wallet: String,
 }
 
@@ -28,7 +28,6 @@ pub struct GlobalPrograms {
     pub devnet: ClusterPrograms,
     pub localnet: Option<ClusterPrograms>,
 }
-
 
 #[derive(Deserialize, Debug)]
 pub struct ClusterPrograms {

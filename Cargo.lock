@@ -582,6 +582,7 @@ version = "0.1.0"
 dependencies = [
  "anchor-client",
  "anyhow",
+ "clap 2.33.3",
  "clap 3.0.0-beta.4",
  "rand 0.7.3",
  "serde",
@@ -589,7 +590,9 @@ dependencies = [
  "serde_json",
  "serum-multisig",
  "shellexpand",
+ "solana-clap-utils",
  "solana-logger",
+ "solana-remote-wallet",
  "toml",
 ]
 

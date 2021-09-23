@@ -20,13 +20,13 @@ use serum_multisig::{Transaction, TransactionAccount};
 
 use crate::request_builder::RequestBuilder;
 
-pub struct MultisigGateway {
+pub struct MultisigGateway<'a> {
     pub client: Program,
     pub cluster: Cluster,
-    pub keypair: Keypair,
+    pub payer: &'a dyn Signer,
 }
 
-impl MultisigGateway {
+impl<'a> MultisigGateway<'a> {
     pub fn signer(&self, multisig: Pubkey) -> (Pubkey, u8) {
         Pubkey::find_program_address(
             &[&multisig.to_bytes()],
@@ -41,9 +41,9 @@ impl MultisigGateway {
     ) -> Result<(Pubkey, Pubkey)> {
         let multisig_acct = Keypair::generate(&mut OsRng);
         let signer = self.signer(multisig_acct.pubkey());
-        self.client.request()
+        self.request()
             .instruction(system_instruction::create_account(
-                &&self.client.payer(),
+                &&self.payer.pubkey(),
                 &multisig_acct.pubkey(),
                 self.client.rpc().get_minimum_balance_for_rent_exemption(500)?,
                 500,
@@ -73,7 +73,7 @@ impl MultisigGateway {
         let tx_acct = Keypair::generate(&mut OsRng);
         self.request()
             .instruction(system_instruction::create_account(
-                &&self.client.payer(),
+                &&self.payer.pubkey(),
                 &tx_acct.pubkey(),
                 self.client.rpc().get_minimum_balance_for_rent_exemption(500)?,
                 500,
@@ -82,7 +82,7 @@ impl MultisigGateway {
             .accounts(serum_multisig::accounts::CreateTransaction {
                 multisig,
                 transaction: tx_acct.pubkey(),
-                proposer: self.client.payer(),
+                proposer: self.payer.pubkey(),
                 rent: sysvar::rent::ID,
             })
             .args(serum_multisig::instruction::CreateTransaction {
@@ -100,11 +100,11 @@ impl MultisigGateway {
         multisig: Pubkey,
         transaction: Pubkey,
     ) -> Result<()> {
-        self.client.request()
+        self.request()
             .accounts(serum_multisig::accounts::Approve {
                 multisig,
                 transaction,
-                owner: self.client.payer(),
+                owner: self.payer.pubkey(),
             })
             .args(serum_multisig::instruction::Approve {})
             .send()?;
@@ -149,7 +149,7 @@ impl MultisigGateway {
         RequestBuilder::from(
             self.client.id(),
             &self.cluster.url(),
-            Keypair::from_bytes(&self.keypair.to_bytes()).unwrap(),
+            self.payer,
             None,
             RequestNamespace::Global,
         )
