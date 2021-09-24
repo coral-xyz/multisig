@@ -1,0 +1,6 @@
+cluster = "localnet"
+# wallet = "usb://ledger?key=0"
+wallet = "~/.config/solana/id.json"
+program-id = "BjJBpaXqRDahqNQ9G41djjXKo23X5tUL6tZoX6ypiWue"
+#multisig = "3MmkfR292hdJjGv8uwC5LHS7EgsQHySgMCmjje6VPp4W"
+multisig = "5x9SrSPXEz2bLa6fqZsFVeQd2Q4HBNco8zd1NqUW6RUV"

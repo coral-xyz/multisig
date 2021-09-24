@@ -6,8 +6,9 @@ use clap::{AppSettings, Clap};
 #[derive(Clap)]
 #[clap(setting = AppSettings::ColoredHelp)]
 pub struct Opts {
-    #[clap(short, long, default_value = "Anchor.toml")]
+    #[clap(short, long, default_value = "~/.config/jet-multisig.toml")]
     pub config: String,
+
     #[clap(subcommand)]
     pub job: Job,
 }
@@ -17,7 +18,7 @@ pub enum Job {
     New(CreateMultisig),
     Approve(Transaction),
     Execute(Transaction),
-    Get(Key),
+    Get,
     GetTransaction(Key),
     ProposeUpgrade(ProposeUpgrade),
     ProposeEdit(Edit),
@@ -36,7 +37,6 @@ pub struct CreateMultisig {
 
 #[derive(Clap, Debug)]
 pub struct Edit {
-    pub multisig: Pubkey,
     #[clap(long)]
     pub threshold: Option<u64>,
     #[clap(long)]
@@ -45,15 +45,12 @@ pub struct Edit {
 
 #[derive(Clap)]
 pub struct ProposeUpgrade {
-    pub multisig: Pubkey,
     pub program: Pubkey,
     pub buffer: Pubkey,
 }
 
 #[derive(Clap)]
 pub struct TokenAction {
-    pub multisig: Pubkey,
-
     #[clap(long, short)]
     pub source: Pubkey,
 
@@ -66,7 +63,6 @@ pub struct TokenAction {
 
 #[derive(Clap)]
 pub struct Transaction {
-    pub multisig: Pubkey,
     pub transaction: Pubkey,
 }
 
@@ -77,8 +73,6 @@ pub struct Key {
 
 #[derive(Clap)]
 pub struct GenerateTokens {
-    pub multisig: Pubkey,
-
     #[clap(long, short = 'k')]
     pub mint_key: PathBuf,
 }
