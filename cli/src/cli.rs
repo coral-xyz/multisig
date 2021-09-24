@@ -20,6 +20,7 @@ pub enum Job {
     Execute(Transaction),
     Get,
     GetTransaction(Key),
+    InspectProposal(Key),
     ProposeUpgrade(ProposeUpgrade),
     ProposeEdit(Edit),
     ProposeMintTokens(TokenAction),

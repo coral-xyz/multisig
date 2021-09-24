@@ -97,6 +97,10 @@ fn run_job(job: Job, service: MultisigService, config: &MultisigConfig) -> Resul
             let tx = service.program.client.account::<Transaction>(cmd.key)?;
             println!("{:#?}", tx);
         }
+        Job::InspectProposal(cmd) => {
+            let tx = service.program.client.account::<Transaction>(cmd.key)?;
+            service.inspect_proposal(&tx)?;
+        }
         Job::ProposeEdit(cmd) => {
             let key = service.propose_set_owners_and_change_threshold(
                 config.multisig,

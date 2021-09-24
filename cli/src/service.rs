@@ -1,14 +1,15 @@
 use anchor_client::{
-    anchor_lang::{AnchorSerialize, InstructionData, ToAccountMetas},
+    anchor_lang::{AnchorDeserialize, AnchorSerialize, InstructionData, ToAccountMetas},
     solana_sdk::{
-        bpf_loader_upgradeable, instruction::Instruction, pubkey::Pubkey, signer, signer::Signer,
-        system_instruction, system_program, sysvar,
+        bpf_loader_upgradeable, instruction::Instruction,
+        loader_upgradeable_instruction::UpgradeableLoaderInstruction, pubkey::Pubkey, signer,
+        signer::Signer, system_instruction, system_program, sysvar,
     },
 };
-use anchor_spl::token::{self, Mint};
+use anchor_spl::token::{self, Mint, TokenAccount};
 use anyhow::{bail, Result};
 use custody::GenerateTokenBumpSeeds;
-use serum_multisig::TransactionAccount;
+use serum_multisig::{Transaction, TransactionAccount};
 /// Extra business logic built on top of multisig program's core functionality
 use std::{io::Write, path::PathBuf};
 
@@ -275,4 +276,94 @@ impl<'a> MultisigService<'a> {
             instruction.data,
         )
     }
+
+    pub fn inspect_proposal(&self, proposed_tx: &Transaction) -> Result<()> {
+        match proposed_tx.program_id {
+            pid if pid == bpf_loader_upgradeable::ID => {
+                let loader_instruction =
+                    bincode::deserialize::<UpgradeableLoaderInstruction>(&proposed_tx.data)?;
+
+                match loader_instruction {
+                    UpgradeableLoaderInstruction::Upgrade => {
+                        println!("Proposal to upgrade a program");
+
+                        let buffer = proposed_tx.accounts[2].pubkey;
+                        let target = proposed_tx.accounts[1].pubkey;
+
+                        println!("Program to upgrade: {}", target);
+                        println!("Proposed upgrade buffer: {}", buffer);
+
+                        return Ok(());
+                    }
+
+                    _ => (),
+                }
+            }
+
+            pid if pid == custody::ID => {
+                let mut instr_hash = [0u8; 8];
+                instr_hash.copy_from_slice(&proposed_tx.data[..8]);
+
+                match instr_hash {
+                    hash if hash == instr_sighash("generate_token_mint") => {
+                        println!("Proposal to generate initial tokens");
+
+                        let mint = proposed_tx.accounts[0].pubkey;
+                        println!("Proposed mint: {}", mint);
+
+                        return Ok(());
+                    }
+
+                    hash if hash == instr_sighash("transfer_funds") => {
+                        println!("Proposal to transfer funds to an account");
+
+                        let args = custody::instruction::TransferFunds::try_from_slice(
+                            &proposed_tx.data[8..],
+                        )?;
+                        let vault = proposed_tx.accounts[0].pubkey;
+                        let target = proposed_tx.accounts[0].pubkey;
+
+                        let vault_account = self.program.client.account::<TokenAccount>(vault)?;
+                        let mint_account =
+                            self.program.client.account::<Mint>(vault_account.mint)?;
+
+                        let base = 10f64.powf(mint_account.decimals as f64);
+                        let proposed_amount = (args.amount as f64) / base;
+                        let vault_amount = (vault_account.amount as f64) / base;
+
+                        println!("Transferring from: {}", vault);
+                        println!("Custodied amount: {}", vault_amount);
+                        println!(
+                            "Custodied remaining after the transfer: {}",
+                            vault_amount - proposed_amount
+                        );
+                        println!();
+                        println!("**TRANSFER AMOUNT**: {}", proposed_amount);
+                        println!();
+                        println!("**TRANSFER TO**: {}", target);
+
+                        return Ok(());
+                    }
+
+                    _ => (),
+                }
+            }
+
+            _ => (),
+        }
+
+        println!("unknown proposal!");
+        Ok(())
+    }
+}
+
+fn instr_sighash(name: &str) -> [u8; 8] {
+    let preimage = format!("global:{}", name);
+
+    let mut result = [0u8; 8];
+
+    result.copy_from_slice(
+        &anchor_client::solana_sdk::hash::hash(preimage.as_bytes()).to_bytes()[..8],
+    );
+    result
 }
