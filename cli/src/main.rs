@@ -35,7 +35,12 @@ fn main() -> Result<()> {
             Cluster::Custom(rpc.to_owned(), wss)
         }
     };
-    let service = load_service(cluster, multisig_config.program_id, &*payer)?;
+    let service = load_service(
+        cluster,
+        multisig_config.program_id,
+        &*payer,
+        &multisig_config,
+    )?;
     run_job(cli_opts.job, service, &multisig_config)
 }
 
@@ -53,6 +58,7 @@ fn load_service<'a>(
     cluster: Cluster,
     program_id: Pubkey,
     payer: &'a dyn Signer,
+    config: &'a MultisigConfig,
 ) -> Result<MultisigService<'a>> {
     // todo change anchor to use Signer so we don't need this dummy keypair that we have to be careful not to use
     let keypair = Keypair::generate(&mut OsRng);
@@ -64,6 +70,7 @@ fn load_service<'a>(
             client,
             cluster,
             payer,
+            config,
         },
     })
 }
@@ -74,13 +81,17 @@ fn run_job(job: Job, service: MultisigService, config: &MultisigConfig) -> Resul
             let keys = service.program.create_multisig(cmd.threshold, cmd.owners)?;
             println!("{} {}", keys.0, keys.1);
         }
+        Job::AddDelegates(cmd) => {
+            service.add_delegates(config.multisig, cmd.delegates)?;
+        }
+        Job::RemoveDelegates(cmd) => {
+            service.remove_delegates(config.multisig, cmd.delegates)?;
+        }
         Job::ProposeUpgrade(cmd) => {
             let key = service.propose_upgrade(&config.multisig, &cmd.program, &cmd.buffer)?;
             println!("{}", key);
         }
-        Job::Approve(cmd) => {
-            service.program.approve(config.multisig, cmd.transaction)?;
-        }
+        Job::Approve(cmd) => service.program.approve(config.multisig, cmd.transaction)?,
         Job::Execute(cmd) => {
             service.program.execute(config.multisig, cmd.transaction)?;
         }

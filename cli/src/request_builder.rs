@@ -109,7 +109,7 @@ impl<'a> RequestBuilder<'a> {
         self
     }
 
-    pub fn send(self) -> Result<Signature, ClientError> {
+    pub fn send(self, preflight: bool) -> Result<Signature, ClientError> {
         let accounts = match self.namespace {
             RequestNamespace::State { new } => {
                 let mut accounts = match new {
@@ -162,7 +162,7 @@ impl<'a> RequestBuilder<'a> {
         };
 
         let mut config = RpcSendTransactionConfig::default();
-        config.skip_preflight = true;
+        config.skip_preflight = !preflight;
 
         // rpc_client
         // .send_transaction_with_config(&tx, config)

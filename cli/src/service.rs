@@ -9,7 +9,7 @@ use anchor_client::{
 use anchor_spl::token::{self, Mint, TokenAccount};
 use anyhow::{bail, Result};
 use custody::GenerateTokenBumpSeeds;
-use serum_multisig::{Transaction, TransactionAccount};
+use serum_multisig::{DelegateList, Transaction, TransactionAccount};
 /// Extra business logic built on top of multisig program's core functionality
 use std::{io::Write, path::PathBuf};
 
@@ -40,6 +40,59 @@ impl InstructionData for DynamicInstructionData {
 }
 
 impl<'a> MultisigService<'a> {
+    pub fn add_delegates(&self, multisig: Pubkey, delegates: Vec<Pubkey>) -> Result<()> {
+        let (delegate_list_account, _) = self
+            .program
+            .delegate_list(multisig, self.program.payer.pubkey());
+
+        let mut existing = match self
+            .program
+            .client
+            .account::<DelegateList>(delegate_list_account)
+        {
+            Ok(list) => list.delegates,
+            Err(_) => {
+                self.program.create_delegate_list(multisig, delegates)?;
+                return Ok(());
+            }
+        };
+
+        existing.extend(delegates);
+        println!("delegates = {:#?}", existing);
+
+        self.program
+            .set_delegate_list(multisig, delegate_list_account, existing)?;
+        Ok(())
+    }
+
+    pub fn remove_delegates(&self, multisig: Pubkey, delegates: Vec<Pubkey>) -> Result<()> {
+        let (delegate_list_account, _) = self
+            .program
+            .delegate_list(multisig, self.program.payer.pubkey());
+
+        let existing = match self
+            .program
+            .client
+            .account::<DelegateList>(delegate_list_account)
+        {
+            Ok(list) => list.delegates,
+            Err(_) => {
+                // FIXME: silent failure if its a network issue?
+                return Ok(());
+            }
+        };
+
+        let new_list = existing
+            .into_iter()
+            .filter(|d| !delegates.contains(d))
+            .collect();
+        println!("delegates = {:#?}", new_list);
+
+        self.program
+            .set_delegate_list(multisig, delegate_list_account, new_list)?;
+        Ok(())
+    }
+
     pub fn propose_mint_tokens(
         &self,
         multisig: Pubkey,

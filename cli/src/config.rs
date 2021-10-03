@@ -21,4 +21,13 @@ pub struct MultisigConfig {
 
     #[serde(with = "serde_with::rust::display_fromstr")]
     pub multisig: Pubkey,
+
+    pub delegation: Option<DelegationConfig>,
+}
+
+#[derive(Deserialize, Debug)]
+#[serde(rename_all = "kebab-case")]
+pub struct DelegationConfig {
+    #[serde(with = "serde_with::rust::display_fromstr")]
+    pub owner: Pubkey,
 }
