@@ -1,4 +1,6 @@
-//! An example of a multisig to execute arbitrary Solana transactions.
+//! A multisig program for executing arbitrary instructions on Solana.
+//!
+//! Forked from serum multisig, customized for Jet Protocol.
 //!
 //! This program can be used to allow a multisig to govern anything a regular
 //! Pubkey can govern. One can use the multisig as a BPF program upgrade
@@ -22,7 +24,7 @@ use anchor_lang::solana_program;
 use anchor_lang::solana_program::instruction::Instruction;
 use std::convert::Into;
 
-declare_id!("BjJBpaXqRDahqNQ9G41djjXKo23X5tUL6tZoX6ypiWue");
+declare_id!("gNHJPYmMy5NT4sDzUnBWBJZa63cQYa6AqyytggUrkXw");
 
 #[program]
 pub mod serum_multisig {
@@ -37,9 +39,45 @@ pub mod serum_multisig {
     ) -> Result<()> {
         let multisig = &mut ctx.accounts.multisig;
         multisig.owners = owners;
+        multisig.signer = ctx.accounts.signer.key();
         multisig.threshold = threshold;
         multisig.nonce = nonce;
         multisig.owner_set_seqno = 0;
+        Ok(())
+    }
+
+    /// Create a delegate list for an owner, to allow other addresses to sign on
+    /// their behalf.
+    pub fn create_delegate_list(
+        ctx: Context<CreateDelegateList>,
+        bump: u8,
+        delegates: Vec<Pubkey>,
+    ) -> Result<()> {
+        let delegate_list = &mut ctx.accounts.delegate_list;
+
+        delegate_list.multisig = ctx.accounts.multisig.key();
+        delegate_list.owner = ctx.accounts.owner.key();
+        delegate_list.delegates = delegates;
+        delegate_list.bump = bump;
+
+        Ok(())
+    }
+
+    /// Change a delegate list for an owner.
+    pub fn set_delegate_list(ctx: Context<SetDelegateList>, delegates: Vec<Pubkey>) -> Result<()> {
+        let delegate_list = &mut ctx.accounts.delegate_list;
+        let multisig = &ctx.accounts.multisig;
+
+        // Make sure the signing authority is the owner or multisig
+        let authority = ctx.accounts.authority.key();
+
+        if authority != delegate_list.owner && authority != multisig.signer {
+            msg!("authority given is not allowed to change this list");
+            return Err(ErrorCode::InvalidOwner.into());
+        }
+
+        delegate_list.delegates = delegates;
+
         Ok(())
     }
 
@@ -51,12 +89,33 @@ pub mod serum_multisig {
         accs: Vec<TransactionAccount>,
         data: Vec<u8>,
     ) -> Result<()> {
+        let owner_key = match ctx.remaining_accounts.get(0) {
+            Some(delegate_list_account) => {
+                let delegate_list =
+                    DelegateList::try_deserialize(&mut &delegate_list_account.data.borrow()[..])?;
+
+                if delegate_list.multisig != ctx.accounts.multisig.key() {
+                    msg!("delegate list isn't for this multisig");
+                    return Err(ErrorCode::InvalidOwner.into());
+                }
+
+                if !delegate_list.delegates.contains(ctx.accounts.proposer.key) {
+                    msg!("delegate isn't in the allowed list");
+                    return Err(ErrorCode::InvalidOwner.into());
+                }
+
+                delegate_list.owner
+            }
+
+            None => *ctx.accounts.proposer.key,
+        };
+
         let owner_index = ctx
             .accounts
             .multisig
             .owners
             .iter()
-            .position(|a| a == ctx.accounts.proposer.key)
+            .position(|a| *a == owner_key)
             .ok_or(ErrorCode::InvalidOwner)?;
 
         let mut signers = Vec::new();
@@ -84,6 +143,27 @@ pub mod serum_multisig {
             .iter()
             .position(|a| a == ctx.accounts.owner.key)
             .ok_or(ErrorCode::InvalidOwner)?;
+
+        ctx.accounts.transaction.signers[owner_index] = true;
+
+        Ok(())
+    }
+
+    // Delegated approval of a transaction on behalf of an owner of the multisig
+    pub fn delegate_approve(ctx: Context<DelegateApprove>) -> Result<()> {
+        let delegate_list = &ctx.accounts.delegate_list;
+        let owner_index = ctx
+            .accounts
+            .multisig
+            .owners
+            .iter()
+            .position(|a| *a == delegate_list.owner)
+            .ok_or(ErrorCode::InvalidOwner)?;
+
+        // Also check that the signer is actually in the list of delegators
+        if !delegate_list.delegates.contains(&ctx.accounts.delegate.key) {
+            return Err(ErrorCode::InvalidOwner.into());
+        }
 
         ctx.accounts.transaction.signers[owner_index] = true;
 
@@ -178,10 +258,50 @@ pub mod serum_multisig {
 }
 
 #[derive(Accounts)]
+#[instruction(bump: u8)]
 pub struct CreateMultisig<'info> {
     #[account(zero)]
     multisig: ProgramAccount<'info, Multisig>,
+
+    #[account(seeds = [
+                multisig.key().as_ref()
+              ],
+              bump = bump)]
+    signer: AccountInfo<'info>,
     rent: Sysvar<'info, Rent>,
+}
+
+#[derive(Accounts)]
+#[instruction(bump: u8)]
+pub struct CreateDelegateList<'info> {
+    multisig: Account<'info, Multisig>,
+
+    #[account(mut, signer)]
+    owner: AccountInfo<'info>,
+
+    #[account(init,
+              seeds = [
+                  multisig.key().as_ref(),
+                  owner.key().as_ref()
+              ],
+              bump = bump,
+              payer = owner,
+              space = 256)]
+    delegate_list: Account<'info, DelegateList>,
+
+    system_program: Program<'info, System>,
+}
+
+#[derive(Accounts)]
+pub struct SetDelegateList<'info> {
+    multisig: Account<'info, Multisig>,
+
+    /// The authority to change the delegate list can be either the owner itself or the multisig.
+    #[account(signer)]
+    authority: AccountInfo<'info>,
+
+    #[account(mut, has_one = multisig)]
+    delegate_list: Account<'info, DelegateList>,
 }
 
 #[derive(Accounts)]
@@ -204,6 +324,23 @@ pub struct Approve<'info> {
     // One of the multisig owners. Checked in the handler.
     #[account(signer)]
     owner: AccountInfo<'info>,
+}
+
+#[derive(Accounts)]
+pub struct DelegateApprove<'info> {
+    #[account(constraint = multisig.owner_set_seqno == transaction.owner_set_seqno)]
+    multisig: Account<'info, Multisig>,
+
+    #[account(mut, has_one = multisig)]
+    transaction: Account<'info, Transaction>,
+
+    // The delegate list to lookup the delegate's authority to approve
+    #[account(has_one = multisig)]
+    delegate_list: Account<'info, DelegateList>,
+
+    // One of the multisig owner's delegate
+    #[account(signer)]
+    delegate: AccountInfo<'info>,
 }
 
 #[derive(Accounts)]
@@ -238,6 +375,17 @@ pub struct Multisig {
     pub threshold: u64,
     pub nonce: u8,
     pub owner_set_seqno: u32,
+    pub signer: Pubkey,
+}
+
+/// Account for describing delegates that may sign on an owner's behalf
+#[account]
+#[derive(Debug, Default)]
+pub struct DelegateList {
+    pub multisig: Pubkey,
+    pub owner: Pubkey,
+    pub delegates: Vec<Pubkey>,
+    pub bump: u8,
 }
 
 #[account]
