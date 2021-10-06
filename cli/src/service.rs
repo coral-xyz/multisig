@@ -104,7 +104,7 @@ impl<'a> MultisigService<'a> {
         self.propose_anchor_instruction(
             None,
             multisig,
-            custody::id(),
+            jet::id(),
             jet::accounts::SetMarketFlags {
                 market,
                 owner: self.program.signer(multisig).0,
