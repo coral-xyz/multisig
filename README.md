@@ -16,7 +16,7 @@ Once the `Multisig` account is created, one can create a `Transaction`
 account, specifying the parameters for a normal solana transaction.
 
 To sign, owners should invoke the `approve` instruction, and finally,
-the `execute_transaction`, once enough (i.e. `threhsold`) of the owners have
+the `execute_transaction`, once enough (i.e. `threshold`) of the owners have
 signed.
 
 ## Note
