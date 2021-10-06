@@ -1,32 +1,20 @@
-use anchor_client::{
-    solana_sdk::{pubkey::Pubkey, signature::Keypair, signer::Signer},
-    Cluster,
-};
+use anchor_client::Cluster;
 use anyhow::Result;
 
 use clap::Clap;
-use clap2::ArgMatches;
 use cli::{Job, Opts};
-use config::MultisigConfig;
-use gateway::MultisigGateway;
+use multisig_client::config::{self, MultisigConfig};
 use jet::state::MarketFlags;
-use rand::rngs::OsRng;
 use serum_multisig::{Multisig, Transaction};
-use service::MultisigService;
-use solana_clap_utils::keypair::DefaultSigner;
-use solana_remote_wallet::remote_wallet::maybe_wallet_manager;
+use multisig_client::service::MultisigService;
 
 mod cli;
-mod config;
-mod gateway;
-mod request_builder;
-mod service;
 
 fn main() -> Result<()> {
     solana_logger::setup_with_default("solana=debug");
     let cli_opts = Opts::parse();
     let multisig_config = config::load(&cli_opts.config)?;
-    let payer = load_payer(&multisig_config.wallet);
+    let payer = multisig_client::load_payer(&multisig_config.wallet);
     let cluster = match &*multisig_config.cluster.to_lowercase() {
         "localnet" | "localhost" => Cluster::Localnet,
         "devnet" => Cluster::Devnet,
@@ -36,44 +24,13 @@ fn main() -> Result<()> {
             Cluster::Custom(rpc.to_owned(), wss)
         }
     };
-    let service = load_service(
+    let service = multisig_client::load_service(
         cluster,
         multisig_config.program_id,
         &*payer,
         &multisig_config,
     )?;
     run_job(cli_opts.job, service, &multisig_config)
-}
-
-fn load_payer(path: &str) -> Box<dyn Signer> {
-    let path = &*shellexpand::tilde(path);
-    let mut wallet_manager = maybe_wallet_manager().unwrap();
-    let default_signer = DefaultSigner::new("keypair".to_string(), path);
-    let arg_matches = ArgMatches::default();
-    default_signer
-        .signer_from_path(&arg_matches, &mut wallet_manager)
-        .unwrap()
-}
-
-fn load_service<'a>(
-    cluster: Cluster,
-    program_id: Pubkey,
-    payer: &'a dyn Signer,
-    config: &'a MultisigConfig,
-) -> Result<MultisigService<'a>> {
-    // todo change anchor to use Signer so we don't need this dummy keypair that we have to be careful not to use
-    let keypair = Keypair::generate(&mut OsRng);
-    let connection = anchor_client::Client::new(cluster.clone(), keypair);
-    let client = connection.program(program_id);
-
-    Ok(MultisigService {
-        program: MultisigGateway {
-            client,
-            cluster,
-            payer,
-            config,
-        },
-    })
 }
 
 fn run_job(job: Job, service: MultisigService, config: &MultisigConfig) -> Result<()> {

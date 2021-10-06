@@ -1,11 +1,10 @@
 [package]
-name = "multisig-cli"
+name = "multisig-client"
 version = "0.1.0"
 edition = "2018"
 
 
 [dependencies]
-multisig-client = { path = "../client" }
 anchor-client = { git = "https://github.com/jet-lab/anchor" }
 anchor-spl = { git = "https://github.com/jet-lab/anchor" }
 spl-token = "3.2.0"

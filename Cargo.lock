@@ -606,32 +606,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "cli"
-version = "0.1.0"
-dependencies = [
- "anchor-client",
- "anchor-spl",
- "anyhow",
- "bincode",
- "clap 2.33.3",
- "clap 3.0.0-beta.4",
- "custody",
- "jet",
- "rand 0.7.3",
- "serde",
- "serde_derive",
- "serde_json",
- "serde_with",
- "serum-multisig",
- "shellexpand",
- "solana-clap-utils",
- "solana-logger",
- "solana-remote-wallet",
- "spl-token",
- "toml",
-]
-
-[[package]]
 name = "cloudabi"
 version = "0.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1634,6 +1608,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "jet-multisig-cli"
+version = "0.1.0"
+dependencies = [
+ "jet-multisig-client",
+ "multisig-cli",
+ "multisig-client",
+]
+
+[[package]]
+name = "jet-multisig-client"
+version = "0.1.0"
+dependencies = [
+ "anchor-client",
+ "anyhow",
+ "custody",
+ "jet",
+ "multisig-client",
+]
+
+[[package]]
 name = "jet-proc-macros"
 version = "0.1.0"
 source = "git+https://github.com/jet-lab/jet-v1#86f5365ce6bd13acf98764638a0ce82a222d3c23"
@@ -1861,6 +1855,59 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b9f1c5b025cda876f66ef43a113f91ebc9f4ccef34843000e0adf6ebbab84e21"
 dependencies = [
  "winapi",
+]
+
+[[package]]
+name = "multisig-cli"
+version = "0.1.0"
+dependencies = [
+ "anchor-client",
+ "anchor-spl",
+ "anyhow",
+ "bincode",
+ "clap 2.33.3",
+ "clap 3.0.0-beta.4",
+ "custody",
+ "jet",
+ "multisig-client",
+ "rand 0.7.3",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "serde_with",
+ "serum-multisig",
+ "shellexpand",
+ "solana-clap-utils",
+ "solana-logger",
+ "solana-remote-wallet",
+ "spl-token",
+ "toml",
+]
+
+[[package]]
+name = "multisig-client"
+version = "0.1.0"
+dependencies = [
+ "anchor-client",
+ "anchor-spl",
+ "anyhow",
+ "bincode",
+ "clap 2.33.3",
+ "clap 3.0.0-beta.4",
+ "custody",
+ "jet",
+ "rand 0.7.3",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "serde_with",
+ "serum-multisig",
+ "shellexpand",
+ "solana-clap-utils",
+ "solana-logger",
+ "solana-remote-wallet",
+ "spl-token",
+ "toml",
 ]
 
 [[package]]
