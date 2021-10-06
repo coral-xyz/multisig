@@ -25,6 +25,7 @@ pub enum Job {
     InspectProposal(Key),
     ProposeUpgrade(ProposeUpgrade),
     ProposeEdit(Edit),
+    ProposeSetMarketFlags(MarketFlags),
     ProposeMintTokens(TokenAction),
     ProposeTransferTokens(TokenAction),
     ProposeCustodyGenerateTokenMint(GenerateTokens),
@@ -83,4 +84,18 @@ pub struct Key {
 pub struct GenerateTokens {
     #[clap(long, short = 'k')]
     pub mint_key: PathBuf,
+}
+
+#[derive(Clap)]
+pub struct MarketFlags {
+    pub market: Pubkey,
+
+    #[clap(long, short = 'b')]
+    pub halt_borrows: bool,
+
+    #[clap(long, short = 'r')]
+    pub halt_repays: bool,
+
+    #[clap(long, short = 'd')]
+    pub halt_deposits: bool,
 }

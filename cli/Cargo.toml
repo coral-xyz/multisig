@@ -5,11 +5,12 @@ edition = "2018"
 
 
 [dependencies]
-anchor-client = "0.16.1"
-anchor-spl = "0.16.1"
+anchor-client = { git = "https://github.com/jet-lab/anchor" }
+anchor-spl = { git = "https://github.com/jet-lab/anchor" }
 spl-token = "3.2.0"
 serum-multisig = { path = "../programs/multisig", features = ["no-entrypoint"]  }
 custody = { path = "../../custody/programs/custody", features = ["no-entrypoint"]  }
+jet = { path = "../../jet-v1/programs/jet", features = ["no-entrypoint"]  }
 shellexpand = "2.1.0"
 anyhow = "1.0.32"
 rand = "0.7.3"

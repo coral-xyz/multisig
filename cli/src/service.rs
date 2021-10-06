@@ -9,6 +9,7 @@ use anchor_client::{
 use anchor_spl::token::{self, Mint, TokenAccount};
 use anyhow::{bail, Result};
 use custody::GenerateTokenBumpSeeds;
+use jet::state::MarketFlags;
 use serum_multisig::{DelegateList, Transaction, TransactionAccount};
 /// Extra business logic built on top of multisig program's core functionality
 use std::{io::Write, path::PathBuf};
@@ -91,6 +92,27 @@ impl<'a> MultisigService<'a> {
         self.program
             .set_delegate_list(multisig, delegate_list_account, new_list)?;
         Ok(())
+    }
+
+    /// jet protocol instruction
+    pub fn propose_set_market_flags(
+        &self,
+        multisig: Pubkey,
+        market: Pubkey,
+        flags: MarketFlags,
+    ) -> Result<Pubkey> {
+        self.propose_anchor_instruction(
+            None,
+            multisig,
+            custody::id(),
+            jet::accounts::SetMarketFlags {
+                market,
+                owner: self.program.signer(multisig).0,
+            },
+            jet::instruction::SetMarketFlags { 
+                flags: flags.bits()
+            },
+        )
     }
 
     pub fn propose_mint_tokens(

@@ -9,6 +9,7 @@ use clap2::ArgMatches;
 use cli::{Job, Opts};
 use config::MultisigConfig;
 use gateway::MultisigGateway;
+use jet::state::MarketFlags;
 use rand::rngs::OsRng;
 use serum_multisig::{Multisig, Transaction};
 use service::MultisigService;
@@ -118,6 +119,20 @@ fn run_job(job: Job, service: MultisigService, config: &MultisigConfig) -> Resul
                 cmd.threshold,
                 cmd.owners,
             )?;
+            println!("{}", key);
+        }
+        Job::ProposeSetMarketFlags(cmd) => {
+            let mut flags = MarketFlags::empty();
+            if cmd.halt_borrows {
+                flags |= MarketFlags::HALT_BORROWS;
+            }
+            if cmd.halt_deposits {
+                flags |= MarketFlags::HALT_DEPOSITS;
+            }
+            if cmd.halt_repays {
+                flags |= MarketFlags::HALT_REPAYS;
+            }
+            let key = service.propose_set_market_flags(config.multisig, cmd.market, flags)?;
             println!("{}", key);
         }
         Job::ProposeMintTokens(cmd) => {
