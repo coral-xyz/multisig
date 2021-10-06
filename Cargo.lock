@@ -1608,6 +1608,7 @@ checksum = "b71991ff56294aa922b450139ee08b3bfc70982c6b2c7562771375cf73542dd4"
 [[package]]
 name = "jet"
 version = "0.2.0"
+source = "git+https://github.com/jet-lab/jet-v1#86f5365ce6bd13acf98764638a0ce82a222d3c23"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
@@ -1624,6 +1625,7 @@ dependencies = [
 [[package]]
 name = "jet-math"
 version = "0.1.0"
+source = "git+https://github.com/jet-lab/jet-v1#86f5365ce6bd13acf98764638a0ce82a222d3c23"
 dependencies = [
  "bytemuck",
  "static_assertions",
@@ -1634,6 +1636,7 @@ dependencies = [
 [[package]]
 name = "jet-proc-macros"
 version = "0.1.0"
+source = "git+https://github.com/jet-lab/jet-v1#86f5365ce6bd13acf98764638a0ce82a222d3c23"
 dependencies = [
  "proc-macro2 1.0.29",
  "quote 1.0.10",
