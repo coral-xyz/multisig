@@ -1611,9 +1611,15 @@ dependencies = [
 name = "jet-multisig-cli"
 version = "0.1.0"
 dependencies = [
+ "anchor-client",
+ "anyhow",
+ "clap 3.0.0-beta.4",
+ "jet",
  "jet-multisig-client",
  "multisig-cli",
  "multisig-client",
+ "serum-multisig",
+ "solana-logger",
 ]
 
 [[package]]
@@ -1621,6 +1627,7 @@ name = "jet-multisig-client"
 version = "0.1.0"
 dependencies = [
  "anchor-client",
+ "anchor-spl",
  "anyhow",
  "custody",
  "jet",

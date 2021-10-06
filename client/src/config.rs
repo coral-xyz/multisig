@@ -1,4 +1,4 @@
-use anchor_client::solana_sdk::pubkey::Pubkey;
+use anchor_client::{Cluster, solana_sdk::pubkey::Pubkey};
 use anyhow::Result;
 use serde_derive::Deserialize;
 
@@ -23,6 +23,20 @@ pub struct MultisigConfig {
     pub multisig: Pubkey,
 
     pub delegation: Option<DelegationConfig>,
+}
+
+impl MultisigConfig {
+    pub fn cluster(&self) -> Cluster {
+        match &*self.cluster.to_lowercase() {
+            "l" | "localnet" | "localhost" => Cluster::Localnet,
+            "d" | "devnet" => Cluster::Devnet,
+            "m" | "mainnet" => Cluster::Mainnet,
+            rpc => {
+                let wss = rpc.replace("https", "wss");
+                Cluster::Custom(rpc.to_owned(), wss)
+            }
+        }
+    }
 }
 
 #[derive(Deserialize, Debug)]

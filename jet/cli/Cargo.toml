@@ -8,3 +8,9 @@ edition = "2018"
 jet-multisig-client = { path = "../client" }
 multisig-client = { path = "../../client" }
 multisig-cli = { path = "../../cli" }
+anchor-client = { git = "https://github.com/jet-lab/anchor" }
+anyhow = "1.0.32"
+clap = "3.0.0-beta.4"
+jet = { git = "https://github.com/jet-lab/jet-v1" }
+solana-logger = "1.7.11"
+serum-multisig = { path = "../../programs/multisig", features = ["no-entrypoint"]  }

@@ -1,7 +1,10 @@
 pub mod config;
+pub mod cli;
 pub mod gateway;
 pub mod request_builder;
 pub mod service;
+pub mod propose;
+pub mod instruction_data;
 
 use anchor_client::{
     solana_sdk::{pubkey::Pubkey, signature::Keypair, signer::Signer},
@@ -29,15 +32,14 @@ pub fn load_payer(path: &str) -> Box<dyn Signer> {
 }
 
 pub fn load_service<'a>(
-    cluster: Cluster,
-    program_id: Pubkey,
     payer: &'a dyn Signer,
     config: &'a MultisigConfig,
 ) -> Result<MultisigService<'a>> {
     // todo change anchor to use Signer so we don't need this dummy keypair that we have to be careful not to use
     let keypair = Keypair::generate(&mut OsRng);
+    let cluster = config.cluster();
     let connection = anchor_client::Client::new(cluster.clone(), keypair);
-    let client = connection.program(program_id);
+    let client = connection.program(config.program_id);
 
     Ok(MultisigService {
         program: MultisigGateway {

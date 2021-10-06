@@ -6,6 +6,7 @@ edition = "2018"
 
 [dependencies]
 anchor-client = { git = "https://github.com/jet-lab/anchor" }
+anchor-spl = { git = "https://github.com/jet-lab/anchor" }
 anyhow = "1.0.32"
 multisig-client = { path = "../../client" }
 custody = { path = "../../../custody/programs/custody", features = ["no-entrypoint"]  }
