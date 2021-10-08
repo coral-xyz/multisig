@@ -526,9 +526,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.0.70"
+version = "1.0.71"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d26a6ce4b6a484fa3edb70f7efa6fc430fd2b87285fe8b84304fd0936faa0dc0"
+checksum = "79c2681d6594606957bbb8631c4b90a7fcaaa72cdb714743a437b156d6a7eedd"
 dependencies = [
  "jobserver",
 ]
@@ -1582,14 +1582,31 @@ checksum = "b71991ff56294aa922b450139ee08b3bfc70982c6b2c7562771375cf73542dd4"
 [[package]]
 name = "jet"
 version = "0.2.0"
-source = "git+https://github.com/jet-lab/jet-v1#86f5365ce6bd13acf98764638a0ce82a222d3c23"
+source = "git+https://github.com/jet-lab/jet-v1?branch=public-instructions#621da7c087c7babbc0f9da77400289b81a1817d9"
 dependencies = [
  "anchor-lang",
  "anchor-spl",
  "bitflags",
  "bytemuck",
- "jet-math",
- "jet-proc-macros",
+ "jet-math 0.1.0 (git+https://github.com/jet-lab/jet-v1?branch=public-instructions)",
+ "jet-proc-macros 0.1.0 (git+https://github.com/jet-lab/jet-v1?branch=public-instructions)",
+ "pyth-client",
+ "solana-program",
+ "static_assertions",
+ "thiserror",
+]
+
+[[package]]
+name = "jet"
+version = "0.2.0"
+source = "git+https://github.com/jet-lab/jet-v1#ac635c327b0fc33cf7f9233e518d16ebf09481a2"
+dependencies = [
+ "anchor-lang",
+ "anchor-spl",
+ "bitflags",
+ "bytemuck",
+ "jet-math 0.1.0 (git+https://github.com/jet-lab/jet-v1)",
+ "jet-proc-macros 0.1.0 (git+https://github.com/jet-lab/jet-v1)",
  "pyth-client",
  "solana-program",
  "static_assertions",
@@ -1599,7 +1616,18 @@ dependencies = [
 [[package]]
 name = "jet-math"
 version = "0.1.0"
-source = "git+https://github.com/jet-lab/jet-v1#86f5365ce6bd13acf98764638a0ce82a222d3c23"
+source = "git+https://github.com/jet-lab/jet-v1?branch=public-instructions#621da7c087c7babbc0f9da77400289b81a1817d9"
+dependencies = [
+ "bytemuck",
+ "static_assertions",
+ "thiserror",
+ "uint",
+]
+
+[[package]]
+name = "jet-math"
+version = "0.1.0"
+source = "git+https://github.com/jet-lab/jet-v1#ac635c327b0fc33cf7f9233e518d16ebf09481a2"
 dependencies = [
  "bytemuck",
  "static_assertions",
@@ -1616,10 +1644,14 @@ dependencies = [
  "anyhow",
  "clap 3.0.0-beta.4",
  "custody",
- "jet",
+ "jet 0.2.0 (git+https://github.com/jet-lab/jet-v1?branch=public-instructions)",
  "multisig-cli",
  "multisig-client",
  "paste",
+ "rand 0.7.3",
+ "serde",
+ "serde_derive",
+ "serde_with",
  "serum-multisig",
  "solana-logger",
 ]
@@ -1627,7 +1659,18 @@ dependencies = [
 [[package]]
 name = "jet-proc-macros"
 version = "0.1.0"
-source = "git+https://github.com/jet-lab/jet-v1#86f5365ce6bd13acf98764638a0ce82a222d3c23"
+source = "git+https://github.com/jet-lab/jet-v1?branch=public-instructions#621da7c087c7babbc0f9da77400289b81a1817d9"
+dependencies = [
+ "proc-macro2 1.0.29",
+ "quote 1.0.10",
+ "static_assertions",
+ "syn 1.0.80",
+]
+
+[[package]]
+name = "jet-proc-macros"
+version = "0.1.0"
+source = "git+https://github.com/jet-lab/jet-v1#ac635c327b0fc33cf7f9233e518d16ebf09481a2"
 dependencies = [
  "proc-macro2 1.0.29",
  "quote 1.0.10",
@@ -1865,7 +1908,7 @@ dependencies = [
  "clap 2.33.3",
  "clap 3.0.0-beta.4",
  "custody",
- "jet",
+ "jet 0.2.0 (git+https://github.com/jet-lab/jet-v1)",
  "multisig-client",
  "rand 0.7.3",
  "serde",
@@ -1892,7 +1935,7 @@ dependencies = [
  "clap 2.33.3",
  "clap 3.0.0-beta.4",
  "custody",
- "jet",
+ "jet 0.2.0 (git+https://github.com/jet-lab/jet-v1)",
  "paste",
  "rand 0.7.3",
  "serde",
@@ -2506,9 +2549,9 @@ dependencies = [
 
 [[package]]
 name = "reqwest"
-version = "0.11.4"
+version = "0.11.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "246e9f61b9bb77df069a947682be06e31ac43ea37862e244a69f177694ea6d22"
+checksum = "51c732d463dd300362ffb44b7b125f299c23d2990411a4253824630ebc7467fb"
 dependencies = [
  "base64 0.13.0",
  "bytes 1.1.0",
@@ -3826,9 +3869,9 @@ dependencies = [
 
 [[package]]
 name = "unicode-bidi"
-version = "0.3.6"
+version = "0.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "246f4c42e67e7a4e3c6106ff716a5d067d4132a642840b242e357e468a2a0085"
+checksum = "1a01404663e3db436ed2746d9fefef640d868edae3cceb81c3b8d5732fda678f"
 
 [[package]]
 name = "unicode-normalization"
@@ -3955,8 +3998,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "632f73e236b219150ea279196e54e610f5dbafa5d61786303d4da54f84e47fce"
 dependencies = [
  "cfg-if 1.0.0",
- "serde",
- "serde_json",
  "wasm-bindgen-macro",
 ]
 

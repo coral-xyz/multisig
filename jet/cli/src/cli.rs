@@ -9,6 +9,7 @@ use multisig_client::cli::run_bpf_proposal;
 use multisig_client::cli::run_multisig_command;
 use multisig_client::cli::run_multisig_proposal;
 use multisig_client::cli::run_token_proposal;
+use multisig_client::config::load;
 use multisig_client::nested_subcommands;
 use multisig_client::{cli::{
     TokenAction,
@@ -21,6 +22,7 @@ use paste::paste;
 
 use crate::propose::custody;
 use crate::propose::jet;
+use crate::propose::jet::ReserveParameters;
 
 #[derive(Clap)]
 #[clap(setting = AppSettings::ColoredHelp)]
@@ -56,6 +58,8 @@ nested_subcommands! {
 #[derive(Clap)]
 pub enum JetProposal {
     SetMarketFlags(MarketFlagsOpts),
+    SetMarketOwner(NewMarketOwner),
+    InitReserve(InitReserve),
 }
 
 #[derive(Clap)]
@@ -83,6 +87,19 @@ pub struct MarketFlagsOpts {
 
     #[clap(long, short = 'd')]
     pub halt_deposits: bool,
+}
+
+
+#[derive(Clap)]
+pub struct NewMarketOwner {
+    pub market: Pubkey,
+    pub new_owner: Pubkey,
+}
+
+#[derive(Clap)]
+pub struct InitReserve {
+    pub market: Pubkey,
+    pub config: String,
 }
 
 pub fn run_job(job: Job, service: &MultisigService, multisig: Option<Pubkey>) -> Result<()> {
@@ -117,6 +134,15 @@ pub fn run_jet_proposal(job: JetProposal, service: &MultisigService, multisig: P
             let key = jet::propose_set_market_flags(&service, multisig, cmd.market, flags)?;
             println!("{}", key);
         }
+        JetProposal::SetMarketOwner(cmd) => {
+            let key = jet::propose_set_market_owner(&service, multisig, cmd.market, cmd.new_owner)?;
+            println!("{}", key);
+        },
+        JetProposal::InitReserve(cmd) => {
+            let params: ReserveParameters = load(&cmd.config)?;
+            let (proposal, reserve) = jet::propose_init_reserve(&service, multisig, cmd.market, params)?;
+            println!("{} {}", proposal, reserve);
+        },
     }
     Ok(())
 }

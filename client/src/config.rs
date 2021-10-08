@@ -1,12 +1,13 @@
 use anchor_client::{Cluster, solana_sdk::pubkey::Pubkey};
 use anyhow::Result;
+use serde::de::DeserializeOwned;
 use serde_derive::Deserialize;
 
-pub fn load(path: &str) -> Result<MultisigConfig> {
+pub fn load<'a, T>(path: &str) -> Result<T> where T: DeserializeOwned {
     let path = &*shellexpand::tilde(path);
     let conf_str = std::fs::read_to_string(path)
         .expect(&format!("Could not load config at {}", path));
-    let config: MultisigConfig = toml::from_str(&conf_str)?;
+    let config: T = toml::from_str(&conf_str)?;
     return Ok(config);
 }
 
