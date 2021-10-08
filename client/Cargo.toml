@@ -25,3 +25,4 @@ solana-logger = "1.7.11"
 solana-remote-wallet = "1.7.11"
 solana-clap-utils = "1.7.11"
 clap2 = { package = "clap", version = "2.33.0" }
+paste = "1.0.5"

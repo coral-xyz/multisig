@@ -4,8 +4,8 @@ use serde_derive::Deserialize;
 
 pub fn load(path: &str) -> Result<MultisigConfig> {
     let path = &*shellexpand::tilde(path);
-    let conf_str =
-        std::fs::read_to_string(path).expect(&format!("Could not load config at {}", path));
+    let conf_str = std::fs::read_to_string(path)
+        .expect(&format!("Could not load config at {}", path));
     let config: MultisigConfig = toml::from_str(&conf_str)?;
     return Ok(config);
 }
@@ -14,13 +14,14 @@ pub fn load(path: &str) -> Result<MultisigConfig> {
 #[serde(rename_all = "kebab-case")]
 pub struct MultisigConfig {
     pub cluster: String,
+
     pub wallet: String,
 
     #[serde(with = "serde_with::rust::display_fromstr")]
     pub program_id: Pubkey,
 
-    #[serde(with = "serde_with::rust::display_fromstr")]
-    pub multisig: Pubkey,
+    #[serde(default, with = "optional_display_fromstr")]
+    pub multisig: Option<Pubkey>,
 
     pub delegation: Option<DelegationConfig>,
 }
@@ -44,4 +45,24 @@ impl MultisigConfig {
 pub struct DelegationConfig {
     #[serde(with = "serde_with::rust::display_fromstr")]
     pub owner: Pubkey,
+}
+
+mod optional_display_fromstr {
+    use super::Pubkey;
+    use serde::{Deserialize, Deserializer};
+
+    // pub fn serialize<S>(value: &Option<Pubkey>, serializer: S) -> Result<S::Ok, S::Error> where S: Serializer {
+    //     #[derive(Serialize)]
+    //     struct Helper<'a>(#[serde(with = "serde_with::rust::display_fromstr")] &'a Pubkey);
+
+    //     value.as_ref().map(Helper).serialize(serializer)
+    // }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<Pubkey>, D::Error> where D: Deserializer<'de>, {
+        #[derive(Deserialize)]
+        struct Helper(#[serde(with = "serde_with::rust::display_fromstr")] Pubkey);
+
+        let helper = Option::deserialize(deserializer)?;
+        Ok(helper.map(|Helper(external)| external))
+    }
 }

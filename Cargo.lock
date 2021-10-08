@@ -1612,26 +1612,16 @@ name = "jet-multisig-cli"
 version = "0.1.0"
 dependencies = [
  "anchor-client",
- "anyhow",
- "clap 3.0.0-beta.4",
- "jet",
- "jet-multisig-client",
- "multisig-cli",
- "multisig-client",
- "serum-multisig",
- "solana-logger",
-]
-
-[[package]]
-name = "jet-multisig-client"
-version = "0.1.0"
-dependencies = [
- "anchor-client",
  "anchor-spl",
  "anyhow",
+ "clap 3.0.0-beta.4",
  "custody",
  "jet",
+ "multisig-cli",
  "multisig-client",
+ "paste",
+ "serum-multisig",
+ "solana-logger",
 ]
 
 [[package]]
@@ -1903,6 +1893,7 @@ dependencies = [
  "clap 3.0.0-beta.4",
  "custody",
  "jet",
+ "paste",
  "rand 0.7.3",
  "serde",
  "serde_derive",
@@ -2173,6 +2164,12 @@ dependencies = [
  "smallvec",
  "winapi",
 ]
+
+[[package]]
+name = "paste"
+version = "1.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "acbf547ad0c65e31259204bd90935776d1c693cec2f4ff7abb7a1bbbd40dfe58"
 
 [[package]]
 name = "pbkdf2"

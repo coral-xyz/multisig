@@ -4,18 +4,23 @@ use anchor_client::solana_sdk::pubkey::Pubkey;
 use anyhow::Result;
 use clap::{AppSettings, Clap};
 use ::jet::state::MarketFlags;
-use jet_multisig_client::propose::custody;
-use jet_multisig_client::propose::jet;
+use multisig_client::cli::MISSING_MULTISIG;
+use multisig_client::cli::run_bpf_proposal;
+use multisig_client::cli::run_multisig_command;
+use multisig_client::cli::run_multisig_proposal;
+use multisig_client::cli::run_token_proposal;
+use multisig_client::nested_subcommands;
 use multisig_client::{cli::{
-    CreateMultisig,
-    Delegates,
-    Edit,
-    Key,
-    ProposeUpgrade,
     TokenAction,
-    Transaction,
-    Job as CoreJob
-}, config::MultisigConfig, service::MultisigService};
+    MultisigCommand,
+    MultisigProposal,
+    BpfProposal,
+    TokenProposal,
+}, service::MultisigService};
+use paste::paste;
+
+use crate::propose::custody;
+use crate::propose::jet;
 
 #[derive(Clap)]
 #[clap(setting = AppSettings::ColoredHelp)]
@@ -23,28 +28,40 @@ pub struct Opts {
     #[clap(short, long, default_value = "~/.config/jet-multisig.toml")]
     pub config: String,
 
+    #[clap(short, long)]
+    pub multisig: Option<Pubkey>,
+
     #[clap(subcommand)]
     pub job: Job,
 }
 
-#[derive(Clap)]
-pub enum Job {
-    New(CreateMultisig),
-    AddDelegates(Delegates),
-    RemoveDelegates(Delegates),
-    Approve(Transaction),
-    Execute(Transaction),
-    Get,
-    GetTransaction(Key),
-    InspectProposal(Key),
-    ProposeUpgrade(ProposeUpgrade),
-    ProposeEdit(Edit),
-    ProposeMintTokens(TokenAction),
-    ProposeTransferTokens(TokenAction),
 
-    ProposeSetMarketFlags(MarketFlagsOpts),
-    ProposeCustodyGenerateTokenMint(GenerateTokens),
-    ProposeCustodyTransferTokens(TokenAction),
+nested_subcommands!(
+    Job {
+        Admin(MultisigCommand),
+        Propose(Proposal),
+    }
+);
+
+nested_subcommands! {
+    Proposal {
+        Multisig(MultisigProposal),
+        Bpf(BpfProposal),
+        Token(TokenProposal),
+        Jet(JetProposal),
+        Custody(CustodyProposal),
+    }
+}
+
+#[derive(Clap)]
+pub enum JetProposal {
+    SetMarketFlags(MarketFlagsOpts),
+}
+
+#[derive(Clap)]
+pub enum CustodyProposal {
+    GenerateTokenMint(GenerateTokens),
+    TransferTokens(TokenAction),
 }
 
 
@@ -68,24 +85,25 @@ pub struct MarketFlagsOpts {
     pub halt_deposits: bool,
 }
 
-
-pub fn run_job(job: Job, service: &MultisigService, config: &MultisigConfig) -> Result<()> {
-    let core = |cj| multisig_client::cli::run_job(cj, &service, config);
+pub fn run_job(job: Job, service: &MultisigService, multisig: Option<Pubkey>) -> Result<()> {
     match job {
-        Job::New(cmd) => core(CoreJob::New(cmd))?,
-        Job::AddDelegates(cmd) => core(CoreJob::AddDelegates(cmd))?,
-        Job::RemoveDelegates(cmd) => core(CoreJob::RemoveDelegates(cmd))?,
-        Job::ProposeUpgrade(cmd) => core(CoreJob::ProposeUpgrade(cmd))?,
-        Job::Approve(cmd) => core(CoreJob::Approve(cmd))?,
-        Job::Execute(cmd) => core(CoreJob::Execute(cmd))?,
-        Job::Get => core(CoreJob::Get)?,
-        Job::GetTransaction(cmd) => core(CoreJob::GetTransaction(cmd))?,
-        Job::InspectProposal(cmd) => core(CoreJob::InspectProposal(cmd))?,
-        Job::ProposeEdit(cmd) => core(CoreJob::ProposeEdit(cmd))?,
-        Job::ProposeMintTokens(cmd) => core(CoreJob::ProposeMintTokens(cmd))?,
-        Job::ProposeTransferTokens(cmd) => core(CoreJob::ProposeTransferTokens(cmd))?,
+        Job::Admin(cmd) => run_multisig_command(cmd.subcommand, service, multisig),
+        Job::Propose(cmd) => {
+            let multisig = multisig.expect(MISSING_MULTISIG);
+            match cmd.subcommand {
+                Proposal::Multisig(cmd) =>  run_multisig_proposal(cmd.subcommand, service, multisig),
+                Proposal::Bpf(cmd) =>  run_bpf_proposal(cmd.subcommand, service, multisig),
+                Proposal::Token(cmd) => run_token_proposal(cmd.subcommand, service, multisig),
+                Proposal::Jet(cmd) => run_jet_proposal(cmd.subcommand, service, multisig),
+                Proposal::Custody(cmd) => run_custody_proposal(cmd.subcommand, service, multisig),
+            }
+        }
+    }
+}
 
-        Job::ProposeSetMarketFlags(cmd) => {
+pub fn run_jet_proposal(job: JetProposal, service: &MultisigService, multisig: Pubkey) -> Result<()> {
+    match job {
+        JetProposal::SetMarketFlags(cmd) => {
             let mut flags = MarketFlags::empty();
             if cmd.halt_borrows {
                 flags |= MarketFlags::HALT_BORROWS;
@@ -96,23 +114,29 @@ pub fn run_job(job: Job, service: &MultisigService, config: &MultisigConfig) -> 
             if cmd.halt_repays {
                 flags |= MarketFlags::HALT_REPAYS;
             }
-            let key = jet::propose_set_market_flags(&service, config.multisig, cmd.market, flags)?;
+            let key = jet::propose_set_market_flags(&service, multisig, cmd.market, flags)?;
             println!("{}", key);
         }
-        Job::ProposeCustodyGenerateTokenMint(cmd) => {
-            let key = custody::propose_custody_generate_token_mint(&service, config.multisig, cmd.mint_key)?;
+    }
+    Ok(())
+}
+
+pub fn run_custody_proposal(job: CustodyProposal, service: &MultisigService, multisig: Pubkey) -> Result<()> {
+    match job {
+        CustodyProposal::GenerateTokenMint(cmd) => {
+            let key = custody::propose_custody_generate_token_mint(&service, multisig, cmd.mint_key)?;
             println!("{}", key);
         }
-        Job::ProposeCustodyTransferTokens(cmd) => {
+        CustodyProposal::TransferTokens(cmd) => {
             let key = custody::propose_custody_transfer_tokens(
                 &service,
-                config.multisig,
+                multisig,
                 cmd.source,
                 cmd.target,
                 cmd.amount,
             )?;
             println!("{}", key);
         }
-    };
+    }
     Ok(())
 }

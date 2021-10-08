@@ -1,20 +1,15 @@
 use anchor_client::{
-    anchor_lang::{AnchorDeserialize, AnchorSerialize, InstructionData, ToAccountMetas},
     solana_sdk::{
-        bpf_loader_upgradeable, instruction::Instruction,
-        loader_upgradeable_instruction::UpgradeableLoaderInstruction, pubkey::Pubkey, signer,
+        pubkey::Pubkey, signer,
         signer::Signer, system_instruction, system_program, sysvar,
     },
 };
-use anchor_spl::token::{self, Mint, TokenAccount};
+use anchor_spl::token::{self, Mint};
 
 use anyhow::{bail, Result};
 use custody::GenerateTokenBumpSeeds;
-use jet::state::MarketFlags;
 use multisig_client::service::MultisigService;
-/// Extra business logic built on top of multisig program's core functionality
-use std::{io::Write, path::PathBuf};
-
+use std::path::PathBuf;
 
 
 pub fn propose_custody_generate_token_mint(

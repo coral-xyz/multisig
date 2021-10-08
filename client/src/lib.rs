@@ -6,10 +6,7 @@ pub mod service;
 pub mod propose;
 pub mod instruction_data;
 
-use anchor_client::{
-    solana_sdk::{pubkey::Pubkey, signature::Keypair, signer::Signer},
-    Cluster,
-};
+use anchor_client::solana_sdk::{signature::Keypair, signer::Signer};
 use anyhow::Result;
 
 use clap2::ArgMatches;
