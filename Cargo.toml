@@ -1,4 +1,6 @@
 [workspace]
 members = [
-    "programs/*"
+    "programs/*",
+    "cli",
+    "tx-creator",
 ]

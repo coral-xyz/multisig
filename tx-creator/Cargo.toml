@@ -1,0 +1,16 @@
+[package]
+name = "tx-creator"
+version = "0.1.0"
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0.40"
+clap = "3.0.0-beta.2"
+multisig = { path = "../programs/multisig" }
+borsh = "0.9.1"
+serde = "1.0"
+serde_json = "1.0"
+shellexpand = "2.1.0"
+solana-sdk = "1.7.8"

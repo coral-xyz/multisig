@@ -1,0 +1,109 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'multisig'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=multisig"
+                ],
+                "filter": {
+                    "name": "multisig",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'multisig'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=multisig",
+                    "--package=cli"
+                ],
+                "filter": {
+                    "name": "multisig",
+                    "kind": "bin"
+                }
+            },
+            "args": [
+                "--cluster",
+                "localnet",
+                "propose-binary-transaction",
+                "--multisig-address",
+                "9kexwy6nveiCeDJLDKCw5WP7gUQaVkuDrw5Xwt1S8SjR",
+                "--data",
+                "../marinade-anchor/set-lp-multisig-params"
+            ],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'multisig'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=multisig",
+                    "--package=cli"
+                ],
+                "filter": {
+                    "name": "multisig",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'tx-creator'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=tx-creator",
+                    "--package=tx-creator"
+                ],
+                "filter": {
+                    "name": "tx-creator",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'tx-creator'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=tx-creator",
+                    "--package=tx-creator"
+                ],
+                "filter": {
+                    "name": "tx-creator",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}
