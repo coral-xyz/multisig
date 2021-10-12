@@ -1,10 +1,10 @@
-pub mod config;
 pub mod cli;
+pub mod config;
 pub mod gateway;
+pub mod instruction_data;
+pub mod propose;
 pub mod request_builder;
 pub mod service;
-pub mod propose;
-pub mod instruction_data;
 
 use anchor_client::solana_sdk::{signature::Keypair, signer::Signer};
 use anyhow::Result;
@@ -16,7 +16,6 @@ use rand::rngs::OsRng;
 use service::MultisigService;
 use solana_clap_utils::keypair::DefaultSigner;
 use solana_remote_wallet::remote_wallet::maybe_wallet_manager;
-
 
 pub fn load_payer(path: &str) -> Box<dyn Signer> {
     let path = &*shellexpand::tilde(path);

@@ -1,23 +1,20 @@
 use std::path::PathBuf;
 
+use ::jet::state::MarketFlags;
 use anchor_client::solana_sdk::pubkey::Pubkey;
 use anyhow::Result;
 use clap::{AppSettings, Clap};
-use ::jet::state::MarketFlags;
-use multisig_client::cli::MISSING_MULTISIG;
 use multisig_client::cli::run_bpf_proposal;
 use multisig_client::cli::run_multisig_command;
 use multisig_client::cli::run_multisig_proposal;
 use multisig_client::cli::run_token_proposal;
+use multisig_client::cli::MISSING_MULTISIG;
 use multisig_client::config::load;
 use multisig_client::nested_subcommands;
-use multisig_client::{cli::{
-    TokenAction,
-    MultisigCommand,
-    MultisigProposal,
-    BpfProposal,
-    TokenProposal,
-}, service::MultisigService};
+use multisig_client::{
+    cli::{BpfProposal, MultisigCommand, MultisigProposal, TokenAction, TokenProposal},
+    service::MultisigService,
+};
 use paste::paste;
 
 use crate::propose::custody;
@@ -36,7 +33,6 @@ pub struct Opts {
     #[clap(subcommand)]
     pub job: Job,
 }
-
 
 nested_subcommands!(
     Job {
@@ -68,7 +64,6 @@ pub enum CustodyProposal {
     TransferTokens(TokenAction),
 }
 
-
 #[derive(Clap)]
 pub struct GenerateTokens {
     #[clap(long, short = 'k')]
@@ -89,7 +84,6 @@ pub struct MarketFlagsOpts {
     pub halt_deposits: bool,
 }
 
-
 #[derive(Clap)]
 pub struct NewMarketOwner {
     pub market: Pubkey,
@@ -108,8 +102,8 @@ pub fn run_job(job: Job, service: &MultisigService, multisig: Option<Pubkey>) ->
         Job::Propose(cmd) => {
             let multisig = multisig.expect(MISSING_MULTISIG);
             match cmd.subcommand {
-                Proposal::Multisig(cmd) =>  run_multisig_proposal(cmd.subcommand, service, multisig),
-                Proposal::Bpf(cmd) =>  run_bpf_proposal(cmd.subcommand, service, multisig),
+                Proposal::Multisig(cmd) => run_multisig_proposal(cmd.subcommand, service, multisig),
+                Proposal::Bpf(cmd) => run_bpf_proposal(cmd.subcommand, service, multisig),
                 Proposal::Token(cmd) => run_token_proposal(cmd.subcommand, service, multisig),
                 Proposal::Jet(cmd) => run_jet_proposal(cmd.subcommand, service, multisig),
                 Proposal::Custody(cmd) => run_custody_proposal(cmd.subcommand, service, multisig),
@@ -118,7 +112,11 @@ pub fn run_job(job: Job, service: &MultisigService, multisig: Option<Pubkey>) ->
     }
 }
 
-pub fn run_jet_proposal(job: JetProposal, service: &MultisigService, multisig: Pubkey) -> Result<()> {
+pub fn run_jet_proposal(
+    job: JetProposal,
+    service: &MultisigService,
+    multisig: Pubkey,
+) -> Result<()> {
     match job {
         JetProposal::SetMarketFlags(cmd) => {
             let mut flags = MarketFlags::empty();
@@ -137,29 +135,31 @@ pub fn run_jet_proposal(job: JetProposal, service: &MultisigService, multisig: P
         JetProposal::SetMarketOwner(cmd) => {
             let key = jet::propose_set_market_owner(&service, multisig, cmd.market, cmd.new_owner)?;
             println!("{}", key);
-        },
+        }
         JetProposal::InitReserve(cmd) => {
             let params: ReserveParameters = load(&cmd.config)?;
-            let (proposal, reserve) = jet::propose_init_reserve(&service, multisig, cmd.market, params)?;
+            let (proposal, reserve) =
+                jet::propose_init_reserve(&service, multisig, cmd.market, params)?;
             println!("{} {}", proposal, reserve);
-        },
+        }
     }
     Ok(())
 }
 
-pub fn run_custody_proposal(job: CustodyProposal, service: &MultisigService, multisig: Pubkey) -> Result<()> {
+pub fn run_custody_proposal(
+    job: CustodyProposal,
+    service: &MultisigService,
+    multisig: Pubkey,
+) -> Result<()> {
     match job {
         CustodyProposal::GenerateTokenMint(cmd) => {
-            let key = custody::propose_custody_generate_token_mint(&service, multisig, cmd.mint_key)?;
+            let key =
+                custody::propose_custody_generate_token_mint(&service, multisig, cmd.mint_key)?;
             println!("{}", key);
         }
         CustodyProposal::TransferTokens(cmd) => {
             let key = custody::propose_custody_transfer_tokens(
-                &service,
-                multisig,
-                cmd.source,
-                cmd.target,
-                cmd.amount,
+                &service, multisig, cmd.source, cmd.target, cmd.amount,
             )?;
             println!("{}", key);
         }

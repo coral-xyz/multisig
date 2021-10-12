@@ -1,7 +1,7 @@
 use anyhow::Result;
 
 use clap::Clap;
-use cli::{Opts, run_job};
+use cli::{run_job, Opts};
 use multisig_client::config::{self, MultisigConfig};
 
 mod cli;

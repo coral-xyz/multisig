@@ -10,11 +10,7 @@ pub fn propose_upgrade(
     buffer: &Pubkey,
 ) -> Result<Pubkey> {
     let signer = service.program.signer(*multisig).0;
-    let instruction = bpf_loader_upgradeable::upgrade(
-        program, 
-        buffer, 
-        &signer, 
-        &service.program.payer.pubkey()
-    );
+    let instruction =
+        bpf_loader_upgradeable::upgrade(program, buffer, &signer, &service.program.payer.pubkey());
     service.propose_solana_instruction(multisig, instruction)
 }

@@ -2,7 +2,6 @@ use std::io::Write;
 
 use anchor_client::anchor_lang::{AnchorSerialize, InstructionData};
 
-
 pub struct DynamicInstructionData {
     data: Vec<u8>,
 }

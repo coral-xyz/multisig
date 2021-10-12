@@ -1,12 +1,13 @@
-use anchor_client::solana_sdk::{pubkey::Pubkey, signature::Keypair, signer::Signer, system_program, sysvar::rent};
+use anchor_client::solana_sdk::{
+    pubkey::Pubkey, signature::Keypair, signer::Signer, system_program, sysvar::rent,
+};
 use anchor_spl::token;
-use jet::state::{MarketFlags, ReserveConfig};
-use jet::instructions::init_reserve::InitReserveBumpSeeds;
-use multisig_client::service::MultisigService;
 use anyhow::Result;
+use jet::instructions::init_reserve::InitReserveBumpSeeds;
+use jet::state::{MarketFlags, ReserveConfig};
+use multisig_client::service::MultisigService;
 use rand::rngs::OsRng;
 use serde_derive::Deserialize;
-
 
 #[derive(Deserialize)]
 pub struct ReserveParameters {
@@ -37,7 +38,6 @@ pub struct ReserveParameters {
     liquidation_dex_trade_max: u64,
 }
 
-
 pub fn propose_init_reserve(
     service: &MultisigService,
     multisig: Pubkey,
@@ -46,12 +46,30 @@ pub fn propose_init_reserve(
 ) -> Result<(Pubkey, Pubkey)> {
     let reserve = Keypair::generate(&mut OsRng);
     let (market_authority, _) = Pubkey::find_program_address(&[market.as_ref()], &jet::id());
-    let (vault, vault_bump) = Pubkey::find_program_address(&[b"vault", reserve.pubkey().as_ref()], &jet::id());
-    let (fee_note_vault, fee_note_vault_bump) = Pubkey::find_program_address(&[b"fee-vault", reserve.pubkey().as_ref()], &jet::id());
-    let (dex_swap_tokens, dex_swap_tokens_bump) = Pubkey::find_program_address(&[b"dex-swap-tokens", reserve.pubkey().as_ref()], &jet::id());
-    let (dex_open_orders, dex_open_orders_bump) = Pubkey::find_program_address(&[b"dex-open-orders", reserve.pubkey().as_ref()], &jet::id());    
-    let (deposit_note_mint, deposit_note_mint_bump) = Pubkey::find_program_address(&[b"deposits", reserve.pubkey().as_ref(), params.token_mint.as_ref()], &jet::id());
-    let (loan_note_mint, loan_note_mint_bump) = Pubkey::find_program_address(&[b"loans", reserve.pubkey().as_ref(), params.token_mint.as_ref()], &jet::id());
+    let (vault, vault_bump) =
+        Pubkey::find_program_address(&[b"vault", reserve.pubkey().as_ref()], &jet::id());
+    let (fee_note_vault, fee_note_vault_bump) =
+        Pubkey::find_program_address(&[b"fee-vault", reserve.pubkey().as_ref()], &jet::id());
+    let (dex_swap_tokens, dex_swap_tokens_bump) =
+        Pubkey::find_program_address(&[b"dex-swap-tokens", reserve.pubkey().as_ref()], &jet::id());
+    let (dex_open_orders, dex_open_orders_bump) =
+        Pubkey::find_program_address(&[b"dex-open-orders", reserve.pubkey().as_ref()], &jet::id());
+    let (deposit_note_mint, deposit_note_mint_bump) = Pubkey::find_program_address(
+        &[
+            b"deposits",
+            reserve.pubkey().as_ref(),
+            params.token_mint.as_ref(),
+        ],
+        &jet::id(),
+    );
+    let (loan_note_mint, loan_note_mint_bump) = Pubkey::find_program_address(
+        &[
+            b"loans",
+            reserve.pubkey().as_ref(),
+            params.token_mint.as_ref(),
+        ],
+        &jet::id(),
+    );
     let bump = InitReserveBumpSeeds {
         vault: vault_bump,
         fee_note_vault: fee_note_vault_bump,
@@ -86,7 +104,7 @@ pub fn propose_init_reserve(
             system_program: system_program::id(),
             rent: rent::id(),
         },
-        jet::instruction::InitReserve { 
+        jet::instruction::InitReserve {
             config: ReserveConfig {
                 utilization_rate_1: params.utilization_rate_1,
                 utilization_rate_2: params.utilization_rate_2,
@@ -104,12 +122,11 @@ pub fn propose_init_reserve(
                 _reserved0: 0,
                 _reserved1: [0; 24],
             },
-            bump
+            bump,
         },
     )?;
     Ok((proposal, reserve.pubkey()))
 }
-
 
 pub fn propose_set_market_flags(
     service: &MultisigService,
@@ -125,12 +142,11 @@ pub fn propose_set_market_flags(
             market,
             owner: service.program.signer(multisig).0,
         },
-        jet::instruction::SetMarketFlags { 
-            flags: flags.bits()
+        jet::instruction::SetMarketFlags {
+            flags: flags.bits(),
         },
     )
 }
-
 
 pub fn propose_set_market_owner(
     service: &MultisigService,
@@ -146,8 +162,6 @@ pub fn propose_set_market_owner(
             market,
             owner: service.program.signer(multisig).0,
         },
-        jet::instruction::SetMarketOwner { 
-            new_owner,
-        },
+        jet::instruction::SetMarketOwner { new_owner },
     )
 }

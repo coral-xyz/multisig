@@ -1,10 +1,7 @@
 use anchor_client::solana_sdk::pubkey::Pubkey;
 use anyhow::Result;
 
-use crate::{
-    instruction_data::dynamic,
-    service::MultisigService
-};
+use crate::{instruction_data::dynamic, service::MultisigService};
 
 pub fn propose_set_owners_and_change_threshold(
     service: &MultisigService,
@@ -14,10 +11,7 @@ pub fn propose_set_owners_and_change_threshold(
 ) -> Result<Pubkey> {
     let args = match (threshold, owners) {
         (Some(threshold), Some(owners)) => {
-            dynamic(serum_multisig::instruction::SetOwnersAndChangeThreshold {
-                owners,
-                threshold,
-            })
+            dynamic(serum_multisig::instruction::SetOwnersAndChangeThreshold { owners, threshold })
         }
         (Some(threshold), None) => {
             dynamic(serum_multisig::instruction::ChangeThreshold { threshold })

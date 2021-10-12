@@ -1,8 +1,5 @@
-use anchor_client::{
-    solana_sdk::{
-        pubkey::Pubkey, signer,
-        signer::Signer, system_instruction, system_program, sysvar,
-    },
+use anchor_client::solana_sdk::{
+    pubkey::Pubkey, signer, signer::Signer, system_instruction, system_program, sysvar,
 };
 use anchor_spl::token::{self, Mint};
 
@@ -10,7 +7,6 @@ use anyhow::{bail, Result};
 use custody::GenerateTokenBumpSeeds;
 use multisig_client::service::MultisigService;
 use std::path::PathBuf;
-
 
 pub fn propose_custody_generate_token_mint(
     service: &MultisigService,
@@ -26,21 +22,25 @@ pub fn propose_custody_generate_token_mint(
         ),
     };
     let signer = Pubkey::find_program_address(&[b"signer"], &custody::id()).0;
-    let getaddr = |seed: &[u8]| {
-        Pubkey::find_program_address(&[seed, mint.pubkey().as_ref()], &custody::id())
-    };
+    let getaddr =
+        |seed: &[u8]| Pubkey::find_program_address(&[seed, mint.pubkey().as_ref()], &custody::id());
     let seed_vault = getaddr(b"seed-vault");
+    let round_a_vault = getaddr(b"round-a-vault");
     let team_vault = getaddr(b"team-vault");
-    let d_vault = getaddr(b"d-vault");
+    let c_vault = getaddr(b"c-vault");
     let e_vault = getaddr(b"e-vault");
+    let ieo_vault = getaddr(b"ieo-vault");
+
     println!(
-        "mint {}\nsigner {}\nseed {}\nteam {}\nd {}\ne {}",
+        "mint {}\nsigner {}\nseed {}\nround_a {}\nteam {}\nc {}\ne {}\nieo {}",
         mint.pubkey(),
         signer,
         seed_vault.0,
+        round_a_vault.0,
         team_vault.0,
-        d_vault.0,
-        e_vault.0
+        c_vault.0,
+        e_vault.0,
+        ieo_vault.0,
     );
 
     let builder = service
@@ -49,7 +49,8 @@ pub fn propose_custody_generate_token_mint(
         .instruction(system_instruction::create_account(
             &&service.program.payer.pubkey(),
             &mint.pubkey(),
-            service.program
+            service
+                .program
                 .client
                 .rpc()
                 .get_minimum_balance_for_rent_exemption(Mint::LEN)?,
@@ -65,9 +66,11 @@ pub fn propose_custody_generate_token_mint(
         custody::accounts::GenerateTokenMint {
             mint: mint.pubkey(),
             seed_vault: seed_vault.0,
+            round_a_vault: round_a_vault.0,
             team_vault: team_vault.0,
-            d_vault: d_vault.0,
+            c_vault: c_vault.0,
             e_vault: e_vault.0,
+            ieo_vault: ieo_vault.0,
             payer: service.program.payer.pubkey(),
             rent: sysvar::rent::ID,
             signer,
@@ -77,9 +80,11 @@ pub fn propose_custody_generate_token_mint(
         custody::instruction::GenerateTokenMint {
             _bump: GenerateTokenBumpSeeds {
                 seed_vault: seed_vault.1,
+                round_a_vault: round_a_vault.1,
                 team_vault: team_vault.1,
-                d_vault: d_vault.1,
+                c_vault: c_vault.1,
                 e_vault: e_vault.1,
+                ieo_vault: ieo_vault.1,
             },
         },
     )

@@ -1,15 +1,13 @@
 use anchor_client::solana_sdk::pubkey::Pubkey;
 use anyhow::Result;
 use clap::{AppSettings, Clap};
-use serum_multisig::{Multisig, Transaction as SerumTxn};
 use paste::paste;
+use serum_multisig::{Multisig, Transaction as SerumTxn};
 
-use crate::service::MultisigService;
 use crate::propose::{bpf, multisig, token};
-
+use crate::service::MultisigService;
 
 pub const MISSING_MULTISIG: &str = "This operation requires a preexisting multisig, but no multisig was specified in the CLI or config file.";
-
 
 #[derive(Clap)]
 #[clap(setting = AppSettings::ColoredHelp)]
@@ -67,7 +65,6 @@ pub enum TokenProposal {
     Transfer(TokenAction),
 }
 
-
 #[derive(Clap, Debug)]
 pub struct CreateMultisig {
     pub threshold: u64,
@@ -123,15 +120,19 @@ pub fn run_job(job: Job, service: &MultisigService, multisig: Option<Pubkey>) ->
         Job::Propose(cmd) => {
             let multisig = multisig.expect(MISSING_MULTISIG);
             match cmd.subcommand {
-                Proposal::Multisig(cmd) =>  run_multisig_proposal(cmd.subcommand, service, multisig),
-                Proposal::Bpf(cmd) =>  run_bpf_proposal(cmd.subcommand, service, multisig),
+                Proposal::Multisig(cmd) => run_multisig_proposal(cmd.subcommand, service, multisig),
+                Proposal::Bpf(cmd) => run_bpf_proposal(cmd.subcommand, service, multisig),
                 Proposal::Token(cmd) => run_token_proposal(cmd.subcommand, service, multisig),
             }
         }
     }
 }
 
-pub fn run_multisig_command(job: MultisigCommand, service: &MultisigService, multisig: Option<Pubkey>) -> Result<()> {
+pub fn run_multisig_command(
+    job: MultisigCommand,
+    service: &MultisigService,
+    multisig: Option<Pubkey>,
+) -> Result<()> {
     match job {
         MultisigCommand::New(cmd) => {
             let keys = service.program.create_multisig(cmd.threshold, cmd.owners)?;
@@ -143,9 +144,13 @@ pub fn run_multisig_command(job: MultisigCommand, service: &MultisigService, mul
         MultisigCommand::RemoveDelegates(cmd) => {
             service.remove_delegates(multisig.expect(MISSING_MULTISIG), cmd.delegates)?;
         }
-        MultisigCommand::Approve(cmd) => service.program.approve(multisig.expect(MISSING_MULTISIG), cmd.transaction)?,
+        MultisigCommand::Approve(cmd) => service
+            .program
+            .approve(multisig.expect(MISSING_MULTISIG), cmd.transaction)?,
         MultisigCommand::Execute(cmd) => {
-            service.program.execute(multisig.expect(MISSING_MULTISIG), cmd.transaction)?;
+            service
+                .program
+                .execute(multisig.expect(MISSING_MULTISIG), cmd.transaction)?;
         }
         MultisigCommand::Get => {
             let ms = service
@@ -168,7 +173,11 @@ pub fn run_multisig_command(job: MultisigCommand, service: &MultisigService, mul
     Ok(())
 }
 
-pub fn run_multisig_proposal(job: MultisigProposal, service: &MultisigService, multisig: Pubkey) -> Result<()> {
+pub fn run_multisig_proposal(
+    job: MultisigProposal,
+    service: &MultisigService,
+    multisig: Pubkey,
+) -> Result<()> {
     match job {
         MultisigProposal::Edit(cmd) => {
             let key = multisig::propose_set_owners_and_change_threshold(
@@ -183,7 +192,11 @@ pub fn run_multisig_proposal(job: MultisigProposal, service: &MultisigService, m
     Ok(())
 }
 
-pub fn run_bpf_proposal(job: BpfProposal, service: &MultisigService, multisig: Pubkey) -> Result<()> {
+pub fn run_bpf_proposal(
+    job: BpfProposal,
+    service: &MultisigService,
+    multisig: Pubkey,
+) -> Result<()> {
     match job {
         BpfProposal::Upgrade(cmd) => {
             let key = bpf::propose_upgrade(&service, &multisig, &cmd.program, &cmd.buffer)?;
@@ -193,7 +206,11 @@ pub fn run_bpf_proposal(job: BpfProposal, service: &MultisigService, multisig: P
     Ok(())
 }
 
-pub fn run_token_proposal(job: TokenProposal, service: &MultisigService, multisig: Pubkey) -> Result<()> {
+pub fn run_token_proposal(
+    job: TokenProposal,
+    service: &MultisigService,
+    multisig: Pubkey,
+) -> Result<()> {
     match job {
         TokenProposal::Mint(cmd) => {
             let key =
@@ -202,11 +219,7 @@ pub fn run_token_proposal(job: TokenProposal, service: &MultisigService, multisi
         }
         TokenProposal::Transfer(cmd) => {
             let key = token::propose_transfer_tokens(
-                &service,
-                multisig,
-                cmd.source,
-                cmd.target,
-                cmd.amount,
+                &service, multisig, cmd.source, cmd.target, cmd.amount,
             )?;
             println!("{}", key);
         }
@@ -214,10 +227,9 @@ pub fn run_token_proposal(job: TokenProposal, service: &MultisigService, multisi
     Ok(())
 }
 
-
 #[macro_export]
 macro_rules! nested_subcommands {
-    ($name:ident { 
+    ($name:ident {
         $($top:ident($bottom:ty)),+$(,)?
     }) => {
         paste! {
@@ -225,7 +237,7 @@ macro_rules! nested_subcommands {
             pub enum $name {
                 $($top([<$top $bottom>]),)+
             }
-            
+
             $(
                 #[derive(Clap)]
                 pub struct [<$top $bottom>] {
@@ -238,13 +250,12 @@ macro_rules! nested_subcommands {
 }
 pub use nested_subcommands;
 
-
 // todo this would make a more declarative syntax where the nesting is
 // represented in a single place instead of multiple structs and enums. it's
 // the next step in the evolution of what nested_subcommands does. but it's
 // tricky to get it working.
 // macro_rules! nested_subcommands2 {
-//     ($name:ident { 
+//     ($name:ident {
 //         $(> $top:ident{$nested:tt}),*
 //         $($top2:ident($bottom:ty)),*
 //         $(,)?
@@ -255,7 +266,7 @@ pub use nested_subcommands;
 //                 $($top([<$top Middleman>]),)*
 //                 $($top2($bottom),)*
 //             }
-            
+
 //             $(
 //                 #[derive(Clap)]
 //                 pub struct [<$top Middleman>] {

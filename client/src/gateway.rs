@@ -117,8 +117,8 @@ impl<'a> MultisigGateway<'a> {
                 &tx_acct.pubkey(),
                 self.client
                     .rpc()
-                    .get_minimum_balance_for_rent_exemption(500)?,
-                500,
+                    .get_minimum_balance_for_rent_exemption(1024)?,
+                1024,
                 &&self.client.id(),
             ))
             .accounts(serum_multisig::accounts::CreateTransaction {

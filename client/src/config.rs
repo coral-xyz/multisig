@@ -1,12 +1,15 @@
-use anchor_client::{Cluster, solana_sdk::pubkey::Pubkey};
+use anchor_client::{solana_sdk::pubkey::Pubkey, Cluster};
 use anyhow::Result;
 use serde::de::DeserializeOwned;
 use serde_derive::Deserialize;
 
-pub fn load<'a, T>(path: &str) -> Result<T> where T: DeserializeOwned {
+pub fn load<'a, T>(path: &str) -> Result<T>
+where
+    T: DeserializeOwned,
+{
     let path = &*shellexpand::tilde(path);
-    let conf_str = std::fs::read_to_string(path)
-        .expect(&format!("Could not load config at {}", path));
+    let conf_str =
+        std::fs::read_to_string(path).expect(&format!("Could not load config at {}", path));
     let config: T = toml::from_str(&conf_str)?;
     return Ok(config);
 }
@@ -59,7 +62,10 @@ mod optional_display_fromstr {
     //     value.as_ref().map(Helper).serialize(serializer)
     // }
 
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<Pubkey>, D::Error> where D: Deserializer<'de>, {
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Option<Pubkey>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
         #[derive(Deserialize)]
         struct Helper(#[serde(with = "serde_with::rust::display_fromstr")] Pubkey);
 
