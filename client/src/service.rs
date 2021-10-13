@@ -170,7 +170,7 @@ impl<'a> MultisigService<'a> {
                             &proposed_tx.data[8..],
                         )?;
                         let vault = proposed_tx.accounts[0].pubkey;
-                        let target = proposed_tx.accounts[0].pubkey;
+                        let target = proposed_tx.accounts[1].pubkey;
 
                         let vault_account = self.program.client.account::<TokenAccount>(vault)?;
                         let mint_account =
