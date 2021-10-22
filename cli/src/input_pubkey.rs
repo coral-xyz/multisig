@@ -12,6 +12,7 @@ pub enum InputPubkey {
 }
 
 impl InputPubkey {
+    #[allow(dead_code)]
     pub fn try_as_path(&self) -> Option<&ExpandedPath> {
         match self {
             InputPubkey::Pubkey(_) => None,
@@ -19,6 +20,7 @@ impl InputPubkey {
         }
     }
 
+    #[allow(dead_code)]
     pub fn try_as_keypair(&self) -> Option<Arc<Keypair>> {
         match self {
             InputPubkey::Pubkey(_) => None,

@@ -1,7 +1,7 @@
 use std::{fmt::Display, str::FromStr, sync::Arc};
 
 use anchor_client::solana_sdk::{
-    signature::{read_keypair_file, write_keypair_file, Keypair},
+    signature::{read_keypair_file, Keypair},
     signer::Signer,
 };
 use anchor_lang::prelude::*;
@@ -16,6 +16,7 @@ pub struct InputKeypair {
 }
 
 impl InputKeypair {
+    #[allow(dead_code)]
     pub fn as_path(&self) -> &ExpandedPath {
         &self.path
     }
@@ -40,21 +41,7 @@ impl FromStr for InputKeypair {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let path = ExpandedPath::from_str(s)?;
-        let keypair = if path.exists() {
-            if path.is_dir() {
-                let keypair = Keypair::new();
-                write_keypair_file(&keypair, &path)
-                    .map_err(|_| anyhow!("error writing keypair file {}", path))?;
-                keypair
-            } else {
-                read_keypair_file(&path).map_err(|e| anyhow!("Error reading keypair file {}", e))?
-            }
-        } else {
-            let keypair = Keypair::new();
-            write_keypair_file(&keypair, &path)
-                .map_err(|_| anyhow!("error writing keypair file {}", path))?;
-            keypair
-        };
+        let keypair = read_keypair_file(&path).map_err(|e| anyhow!("Error reading keypair file {}", e))?;
         Ok(Self {
             path,
             keypair: Arc::new(keypair),

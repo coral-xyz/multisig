@@ -27,6 +27,7 @@ use serde::{Serialize, Serializer};
 mod expanded_path;
 mod input_keypair;
 mod input_pubkey;
+mod spl_token_transfer;
 
 /// Multisig -- interact with a deployed Multisig program.
 #[derive(Clap, Debug)]
@@ -61,6 +62,9 @@ enum SubCommand {
 
     /// Show the details of a transaction.
     ShowTransaction(ShowTransactionOpts),
+
+    /// Propose spl-token transfer
+    ProposeSplTokenTransfer(spl_token_transfer::SplTokenTransferOptions),
 
     /// Propose binary transaction from file
     ProposeBinaryTransaction(ProposeBinaryTransactionOpts),
@@ -252,6 +256,9 @@ fn main() {
         SubCommand::ShowTransaction(cmd_opts) => {
             let output = show_transaction(program, cmd_opts);
             print_output(opts.output_json, &output);
+        }
+        SubCommand::ProposeSplTokenTransfer(cmd_opts) => {
+            spl_token_transfer::propose_spl_token_transfer(program, cmd_opts);
         }
         SubCommand::ProposeBinaryTransaction(cmd_opts) => {
             let output = propose_binary_transaction(program, cmd_opts);
@@ -689,7 +696,7 @@ impl fmt::Display for ProposeInstructionOutput {
 }
 
 /// Propose the given instruction to be approved and executed by the multisig.
-fn propose_instruction(
+pub(crate) fn propose_instruction(
     program: Program,
     multisig_address: Pubkey,
     transaction_account: Arc<Keypair>,
