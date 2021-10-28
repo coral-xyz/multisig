@@ -28,6 +28,7 @@ pub fn propose_custody_generate_token_mint(
     let round_a_vault = getaddr(b"round-a-vault");
     let team_vault = getaddr(b"team-vault");
     let c_vault = getaddr(b"c-vault");
+    let d_vault = getaddr(b"c-vault");
     let e_vault = getaddr(b"e-vault");
     let ieo_vault = getaddr(b"ieo-vault");
 
@@ -66,11 +67,9 @@ pub fn propose_custody_generate_token_mint(
         custody::accounts::GenerateTokenMint {
             mint: mint.pubkey(),
             seed_vault: seed_vault.0,
-            round_a_vault: round_a_vault.0,
             team_vault: team_vault.0,
-            c_vault: c_vault.0,
+            d_vault: d_vault.0,
             e_vault: e_vault.0,
-            ieo_vault: ieo_vault.0,
             payer: service.program.payer.pubkey(),
             rent: sysvar::rent::ID,
             signer,
@@ -80,11 +79,9 @@ pub fn propose_custody_generate_token_mint(
         custody::instruction::GenerateTokenMint {
             _bump: GenerateTokenBumpSeeds {
                 seed_vault: seed_vault.1,
-                round_a_vault: round_a_vault.1,
                 team_vault: team_vault.1,
-                c_vault: c_vault.1,
+                d_vault: d_vault.1,
                 e_vault: e_vault.1,
-                ieo_vault: ieo_vault.1,
             },
         },
     )
