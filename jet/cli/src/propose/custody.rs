@@ -28,7 +28,7 @@ pub fn propose_custody_generate_token_mint(
     let round_a_vault = getaddr(b"round-a-vault");
     let team_vault = getaddr(b"team-vault");
     let c_vault = getaddr(b"c-vault");
-    let d_vault = getaddr(b"c-vault");
+    let d_vault = getaddr(b"d-vault");
     let e_vault = getaddr(b"e-vault");
     let ieo_vault = getaddr(b"ieo-vault");
 
