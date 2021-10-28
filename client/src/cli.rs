@@ -1,6 +1,6 @@
 use anchor_client::solana_sdk::pubkey::Pubkey;
 use anyhow::Result;
-use clap::{AppSettings, Clap};
+use clap::Parser;
 use paste::paste;
 use serum_multisig::{Multisig, Transaction as SerumTxn};
 
@@ -9,8 +9,7 @@ use crate::service::MultisigService;
 
 pub const MISSING_MULTISIG: &str = "This operation requires a preexisting multisig, but no multisig was specified in the CLI or config file.";
 
-#[derive(Clap)]
-#[clap(setting = AppSettings::ColoredHelp)]
+#[derive(Parser)]
 pub struct Opts {
     #[clap(short, long, default_value = "~/.config/jet-multisig.toml")]
     pub config: String,
@@ -29,7 +28,7 @@ nested_subcommands!(
     }
 );
 
-#[derive(Clap)]
+#[derive(Parser)]
 pub enum MultisigCommand {
     New(CreateMultisig),
     AddDelegates(Delegates),
@@ -49,35 +48,35 @@ nested_subcommands! {
     }
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 pub enum MultisigProposal {
     Edit(Edit),
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 pub enum BpfProposal {
     Upgrade(ProposeUpgrade),
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 pub enum TokenProposal {
     Mint(TokenAction),
     Transfer(TokenAction),
 }
 
-#[derive(Clap, Debug)]
+#[derive(Parser, Debug)]
 pub struct CreateMultisig {
     pub threshold: u64,
     #[clap(required = true)]
     pub owners: Vec<Pubkey>,
 }
 
-#[derive(Clap, Debug)]
+#[derive(Parser, Debug)]
 pub struct Delegates {
     pub delegates: Vec<Pubkey>,
 }
 
-#[derive(Clap, Debug)]
+#[derive(Parser, Debug)]
 pub struct Edit {
     #[clap(long)]
     pub threshold: Option<u64>,
@@ -85,13 +84,13 @@ pub struct Edit {
     pub owners: Option<Vec<Pubkey>>,
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 pub struct ProposeUpgrade {
     pub program: Pubkey,
     pub buffer: Pubkey,
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 pub struct TokenAction {
     #[clap(long, short)]
     pub source: Pubkey,
@@ -103,12 +102,12 @@ pub struct TokenAction {
     pub amount: u64,
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 pub struct Transaction {
     pub transaction: Pubkey,
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 pub struct Key {
     pub key: Pubkey,
 }
@@ -233,13 +232,13 @@ macro_rules! nested_subcommands {
         $($top:ident($bottom:ty)),+$(,)?
     }) => {
         paste! {
-            #[derive(Clap)]
+            #[derive(Parser)]
             pub enum $name {
                 $($top([<$top $bottom>]),)+
             }
 
             $(
-                #[derive(Clap)]
+                #[derive(Parser)]
                 pub struct [<$top $bottom>] {
                     #[clap(subcommand)]
                     subcommand: $bottom
@@ -261,14 +260,14 @@ pub use nested_subcommands;
 //         $(,)?
 //     }) => {
 //         paste! {
-//             #[derive(Clap)]
+//             #[derive(Parser)]
 //             pub enum $name {
 //                 $($top([<$top Middleman>]),)*
 //                 $($top2($bottom),)*
 //             }
 
 //             $(
-//                 #[derive(Clap)]
+//                 #[derive(Parser)]
 //                 pub struct [<$top Middleman>] {
 //                     #[clap(subcommand)]
 //                     subcommand: $top

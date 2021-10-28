@@ -1,6 +1,6 @@
 use anyhow::Result;
 
-use clap::Clap;
+use clap::Parser;
 use multisig_client::{
     cli::{run_job, Opts},
     config::{self, MultisigConfig},

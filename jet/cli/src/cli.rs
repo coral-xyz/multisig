@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use ::jet::state::MarketFlags;
 use anchor_client::solana_sdk::pubkey::Pubkey;
 use anyhow::Result;
-use clap::{AppSettings, Clap};
+use clap::Parser;
 use multisig_client::cli::run_bpf_proposal;
 use multisig_client::cli::run_multisig_command;
 use multisig_client::cli::run_multisig_proposal;
@@ -21,8 +21,7 @@ use crate::propose::custody;
 use crate::propose::jet;
 use crate::propose::jet::ReserveParameters;
 
-#[derive(Clap)]
-#[clap(setting = AppSettings::ColoredHelp)]
+#[derive(Parser)]
 pub struct Opts {
     #[clap(short, long, default_value = "~/.config/jet-multisig.toml")]
     pub config: String,
@@ -51,26 +50,26 @@ nested_subcommands! {
     }
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 pub enum JetProposal {
     SetMarketFlags(MarketFlagsOpts),
     SetMarketOwner(NewMarketOwner),
     InitReserve(InitReserve),
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 pub enum CustodyProposal {
     GenerateTokenMint(GenerateTokens),
     TransferTokens(TokenAction),
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 pub struct GenerateTokens {
     #[clap(long, short = 'k')]
     pub mint_key: PathBuf,
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 pub struct MarketFlagsOpts {
     pub market: Pubkey,
 
@@ -84,13 +83,13 @@ pub struct MarketFlagsOpts {
     pub halt_deposits: bool,
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 pub struct NewMarketOwner {
     pub market: Pubkey,
     pub new_owner: Pubkey,
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 pub struct InitReserve {
     pub market: Pubkey,
     pub config: String,
