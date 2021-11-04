@@ -1,10 +1,11 @@
 use anyhow::Result;
 
 use clap::Parser;
-use multisig_client::{
-    cli::{run_job, Opts},
-    config::{self, MultisigConfig},
-};
+use cli::{run_job, Opts};
+use multisig_client::config::{self, MultisigConfig};
+
+mod cli;
+mod propose;
 
 fn main() -> Result<()> {
     solana_logger::setup_with_default("solana=debug");

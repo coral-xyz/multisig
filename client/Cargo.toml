@@ -1,11 +1,10 @@
 [package]
-name = "multisig-cli"
+name = "multisig-client"
 version = "0.1.0"
 edition = "2018"
 
 
 [dependencies]
-multisig-client = { path = "../client" }
 anchor-client = { git = "https://github.com/jet-lab/anchor" }
 anchor-spl = { git = "https://github.com/jet-lab/anchor" }
 spl-token = "3.2.0"
@@ -21,8 +20,9 @@ serde = "1.0"
 serde_with = "1.3"
 serde_json = "1.0"
 bincode = "1.3"
-clap = "3.0.0-beta.4"
+clap = "3.0.0-beta.5"
 solana-logger = "1.7.11"
 solana-remote-wallet = "1.7.11"
 solana-clap-utils = "1.7.11"
 clap2 = { package = "clap", version = "2.33.0" }
+paste = "1.0.5"

@@ -24,7 +24,7 @@ use anchor_lang::solana_program;
 use anchor_lang::solana_program::instruction::Instruction;
 use std::convert::Into;
 
-declare_id!("gNHJPYmMy5NT4sDzUnBWBJZa63cQYa6AqyytggUrkXw");
+declare_id!("JPEngBKGXmLUWAXrqZ66zTUzXNBirh5Lkjpjh7dfbXV");
 
 #[program]
 pub mod serum_multisig {
@@ -33,9 +33,9 @@ pub mod serum_multisig {
     // Initializes a new multisig account with a set of owners and a threshold.
     pub fn create_multisig(
         ctx: Context<CreateMultisig>,
+        nonce: u8,
         owners: Vec<Pubkey>,
         threshold: u64,
-        nonce: u8,
     ) -> Result<()> {
         let multisig = &mut ctx.accounts.multisig;
         multisig.owners = owners;
