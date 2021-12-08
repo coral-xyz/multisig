@@ -1,4 +1,4 @@
-anchor_version = "0.14.0"
+anchor_version = "0.18.2"
 
 [provider]
 cluster = "localnet"
