@@ -22,6 +22,8 @@ use anchor_lang::solana_program;
 use anchor_lang::solana_program::instruction::Instruction;
 use std::convert::Into;
 
+declare_id!("6tbPiQLgTU4ySYWyZGXbnVSAEzLc1uF8t5kJPXXgBmRP");
+
 #[program]
 pub mod serum_multisig {
     use super::*;
