@@ -35,6 +35,9 @@ pub mod serum_multisig {
         threshold: u64,
         nonce: u8,
     ) -> Result<()> {
+        assert_unique_owners(&owners)?;
+        require!(threshold > 0, InvalidThreshold);
+
         let multisig = &mut ctx.accounts.multisig;
         multisig.owners = owners;
         multisig.threshold = threshold;
@@ -106,6 +109,8 @@ pub mod serum_multisig {
     // Sets the owners field on the multisig. The only way this can be invoked
     // is via a recursive call from execute_transaction -> set_owners.
     pub fn set_owners(ctx: Context<Auth>, owners: Vec<Pubkey>) -> Result<()> {
+        assert_unique_owners(&owners)?;
+
         let multisig = &mut ctx.accounts.multisig;
 
         if (owners.len() as u64) < multisig.threshold {
@@ -122,6 +127,7 @@ pub mod serum_multisig {
     // invoked is via a recursive call from execute_transaction ->
     // change_threshold.
     pub fn change_threshold(ctx: Context<Auth>, threshold: u64) -> Result<()> {
+        require!(threshold > 0, InvalidThreshold);
         if threshold > ctx.accounts.multisig.owners.len() as u64 {
             return Err(ErrorCode::InvalidThreshold.into());
         }
@@ -293,6 +299,14 @@ impl From<&AccountMeta> for TransactionAccount {
     }
 }
 
+fn assert_unique_owners(owners: &[Pubkey]) -> Result<()> {
+    let mut uniq_owners = owners.to_vec();
+    uniq_owners.sort();
+    uniq_owners.dedup();
+    require!(owners.len() == uniq_owners.len(), UniqueOwners);
+    Ok(())
+}
+
 #[error]
 pub enum ErrorCode {
     #[msg("The given owner is not part of this multisig.")]
@@ -309,4 +323,6 @@ pub enum ErrorCode {
     AlreadyExecuted,
     #[msg("Threshold must be less than or equal to the number of owners.")]
     InvalidThreshold,
+    #[msg("Owners must be unique")]
+    UniqueOwners,
 }
