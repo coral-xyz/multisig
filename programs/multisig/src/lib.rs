@@ -156,7 +156,7 @@ pub mod serum_multisig {
         }
 
         // Execute the transaction signed by the multisig.
-        let mut ix: Instruction = (&*ctx.accounts.transaction).into();
+        let mut ix: Instruction = (&**ctx.accounts.transaction).into();
         ix.accounts = ix
             .accounts
             .iter()
@@ -186,55 +186,54 @@ pub mod serum_multisig {
 #[derive(Accounts)]
 pub struct CreateMultisig<'info> {
     #[account(zero)]
-    multisig: ProgramAccount<'info, Multisig>,
+    multisig: Box<Account<'info, Multisig>>,
     rent: Sysvar<'info, Rent>,
 }
 
 #[derive(Accounts)]
 pub struct CreateTransaction<'info> {
-    multisig: ProgramAccount<'info, Multisig>,
+    multisig: Box<Account<'info, Multisig>>,
     #[account(zero)]
-    transaction: ProgramAccount<'info, Transaction>,
+    transaction: Box<Account<'info, Transaction>>,
     // One of the owners. Checked in the handler.
-    #[account(signer)]
-    proposer: AccountInfo<'info>,
+    #[account()]
+    proposer: Signer<'info>,
     rent: Sysvar<'info, Rent>,
 }
 
 #[derive(Accounts)]
 pub struct Approve<'info> {
     #[account(constraint = multisig.owner_set_seqno == transaction.owner_set_seqno)]
-    multisig: ProgramAccount<'info, Multisig>,
+    multisig: Box<Account<'info, Multisig>>,
     #[account(mut, has_one = multisig)]
-    transaction: ProgramAccount<'info, Transaction>,
+    transaction: Box<Account<'info, Transaction>>,
     // One of the multisig owners. Checked in the handler.
-    #[account(signer)]
-    owner: AccountInfo<'info>,
+    #[account()]
+    owner: Signer<'info>,
 }
 
 #[derive(Accounts)]
 pub struct Auth<'info> {
     #[account(mut)]
-    multisig: ProgramAccount<'info, Multisig>,
+    multisig: Box<Account<'info, Multisig>>,
     #[account(
-        signer,
         seeds = [multisig.to_account_info().key.as_ref()],
         bump = multisig.nonce,
     )]
-    multisig_signer: AccountInfo<'info>,
+    multisig_signer: Signer<'info>,
 }
 
 #[derive(Accounts)]
 pub struct ExecuteTransaction<'info> {
     #[account(constraint = multisig.owner_set_seqno == transaction.owner_set_seqno)]
-    multisig: ProgramAccount<'info, Multisig>,
+    multisig: Box<Account<'info, Multisig>>,
     #[account(
         seeds = [multisig.to_account_info().key.as_ref()],
         bump = multisig.nonce,
     )]
-    multisig_signer: AccountInfo<'info>,
+    multisig_signer: UncheckedAccount<'info>,
     #[account(mut, has_one = multisig)]
-    transaction: ProgramAccount<'info, Transaction>,
+    transaction: Box<Account<'info, Transaction>>,
 }
 
 #[account]
