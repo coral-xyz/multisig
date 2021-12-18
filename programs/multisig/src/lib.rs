@@ -37,6 +37,7 @@ pub mod serum_multisig {
     ) -> Result<()> {
         assert_unique_owners(&owners)?;
         require!(threshold > 0, InvalidThreshold);
+        require!(owners.len() > 0, InvalidOwnersLen);
 
         let multisig = &mut ctx.accounts.multisig;
         multisig.owners = owners;
@@ -110,6 +111,7 @@ pub mod serum_multisig {
     // is via a recursive call from execute_transaction -> set_owners.
     pub fn set_owners(ctx: Context<Auth>, owners: Vec<Pubkey>) -> Result<()> {
         assert_unique_owners(&owners)?;
+        require!(owners.len() > 0, InvalidOwnersLen);
 
         let multisig = &mut ctx.accounts.multisig;
 
@@ -311,6 +313,8 @@ fn assert_unique_owners(owners: &[Pubkey]) -> Result<()> {
 pub enum ErrorCode {
     #[msg("The given owner is not part of this multisig.")]
     InvalidOwner,
+    #[msg("Owners length must be non zero.")]
+    InvalidOwnersLen,
     #[msg("Not enough owners signed this transaction.")]
     NotEnoughSigners,
     #[msg("Cannot delete a transaction that has been signed by an owner.")]
