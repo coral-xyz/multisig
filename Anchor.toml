@@ -1,14 +1,14 @@
 anchor_version = "0.18.2"
 
 [provider]
-cluster = "localnet"
-wallet = "~/.config/solana/id.json"
+cluster = "devnet"
+wallet = "keys/upgrade-authority.json"
 
 [programs.mainnet]
-serum_multisig = "6tbPiQLgTU4ySYWyZGXbnVSAEzLc1uF8t5kJPXXgBmRP"
+mean_multisig = "FF7U7Vj1PpBkTPau7frwLLrUHrjkxTQLsH7U5K3T3B3j"
 
 [programs.devnet]
-serum_multisig = "F3Uf5F61dmht1xuNNNkk3jnzj82TY56vVjVEhZALRkN"
+mean_multisig = "FF7U7Vj1PpBkTPau7frwLLrUHrjkxTQLsH7U5K3T3B3j"
 
 [scripts]
 test = "mocha -t 1000000 tests/"
