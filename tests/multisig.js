@@ -6,26 +6,35 @@ describe("multisig", () => {
   anchor.setProvider(anchor.Provider.env());
 
   const program = anchor.workspace.SerumMultisig;
+  const ownerA = anchor.web3.Keypair.generate();
+  const ownerB = anchor.web3.Keypair.generate();
+  const ownerC = anchor.web3.Keypair.generate();
+  const ownerD = anchor.web3.Keypair.generate();
+  const multisig = anchor.web3.Keypair.generate();
 
-  it("Tests the multisig program", async () => {
-    const multisig = anchor.web3.Keypair.generate();
+  let multisigSigner;
+  let multisigSignerNonce;
+
+  let staleTx = anchor.web3.Keypair.generate();
+
+  it("Creates PDA", async () => {
     const [
-      multisigSigner,
-      nonce,
+      _multisigSigner,
+      _multisigSignerNonce,
     ] = await anchor.web3.PublicKey.findProgramAddress(
       [multisig.publicKey.toBuffer()],
       program.programId
     );
+
+    multisigSigner = _multisigSigner;
+    multisigSignerNonce = _multisigSignerNonce;
+  });
+
+  it("Creates the multisig", async () => {
     const multisigSize = 200; // Big enough.
-
-    const ownerA = anchor.web3.Keypair.generate();
-    const ownerB = anchor.web3.Keypair.generate();
-    const ownerC = anchor.web3.Keypair.generate();
-    const ownerD = anchor.web3.Keypair.generate();
     const owners = [ownerA.publicKey, ownerB.publicKey, ownerC.publicKey];
-
     const threshold = new anchor.BN(2);
-    await program.rpc.createMultisig(owners, threshold, nonce, {
+    await program.rpc.createMultisig(owners, threshold, multisigSignerNonce, {
       accounts: {
         multisig: multisig.publicKey,
         rent: anchor.web3.SYSVAR_RENT_PUBKEY,
@@ -39,13 +48,64 @@ describe("multisig", () => {
       signers: [multisig],
     });
 
-    let multisigAccount = await program.account.multisig.fetch(multisig.publicKey);
-    assert.strictEqual(multisigAccount.nonce, nonce);
+    let multisigAccount = await program.account.multisig.fetch(
+      multisig.publicKey
+    );
+    assert.strictEqual(multisigAccount.nonce, multisigSignerNonce);
     assert.ok(multisigAccount.threshold.eq(new anchor.BN(2)));
     assert.deepStrictEqual(multisigAccount.owners, owners);
     assert.ok(multisigAccount.ownerSetSeqno === 0);
+  });
 
-    const pid = program.programId;
+  it("A creates and signs a tx B and C don't agree with", async () => {
+    const accounts = [
+      {
+        pubkey: multisig.publicKey,
+        isWritable: true,
+        isSigner: false,
+      },
+      {
+        pubkey: multisigSigner,
+        isWritable: false,
+        isSigner: true,
+      },
+    ];
+    const newOwners = [ownerA.publicKey, ownerC.publicKey, ownerD.publicKey];
+    const data = program.coder.instruction.encode("set_owners", {
+      owners: newOwners,
+    });
+    const transaction = anchor.web3.Keypair.generate();
+    const txSize = 1000; // Big enough, cuz I'm lazy.
+    await program.rpc.createTransaction(program.programId, accounts, data, {
+      accounts: {
+        multisig: multisig.publicKey,
+        transaction: transaction.publicKey,
+        proposer: ownerA.publicKey,
+        rent: anchor.web3.SYSVAR_RENT_PUBKEY,
+      },
+      instructions: [
+        await program.account.transaction.createInstruction(
+          transaction,
+          txSize
+        ),
+      ],
+      signers: [transaction, ownerA],
+    });
+
+    const txAccount = await program.account.transaction.fetch(
+      transaction.publicKey
+    );
+    assert.ok(txAccount.programId.equals(program.programId));
+    assert.deepStrictEqual(txAccount.accounts, accounts);
+    assert.deepStrictEqual(txAccount.data, data);
+    assert.ok(txAccount.multisig.equals(multisig.publicKey));
+    assert.deepStrictEqual(txAccount.didExecute, false);
+    assert.ok(txAccount.ownerSetSeqno === 0);
+
+    staleTx = transaction.publicKey;
+  });
+
+  it("Change the owner set to A, B, D", async () => {
     const accounts = [
       {
         pubkey: multisig.publicKey,
@@ -62,10 +122,9 @@ describe("multisig", () => {
     const data = program.coder.instruction.encode("set_owners", {
       owners: newOwners,
     });
-
     const transaction = anchor.web3.Keypair.generate();
     const txSize = 1000; // Big enough, cuz I'm lazy.
-    await program.rpc.createTransaction(pid, accounts, data, {
+    await program.rpc.createTransaction(program.programId, accounts, data, {
       accounts: {
         multisig: multisig.publicKey,
         transaction: transaction.publicKey,
@@ -81,16 +140,17 @@ describe("multisig", () => {
       signers: [transaction, ownerA],
     });
 
-    const txAccount = await program.account.transaction.fetch(transaction.publicKey);
-
-    assert.ok(txAccount.programId.equals(pid));
+    const txAccount = await program.account.transaction.fetch(
+      transaction.publicKey
+    );
+    assert.ok(txAccount.programId.equals(program.programId));
     assert.deepStrictEqual(txAccount.accounts, accounts);
     assert.deepStrictEqual(txAccount.data, data);
     assert.ok(txAccount.multisig.equals(multisig.publicKey));
     assert.deepStrictEqual(txAccount.didExecute, false);
     assert.ok(txAccount.ownerSetSeqno === 0);
 
-    // Other owner approves transactoin.
+    // B approves transaction.
     await program.rpc.approve({
       accounts: {
         multisig: multisig.publicKey,
@@ -127,9 +187,29 @@ describe("multisig", () => {
 
     multisigAccount = await program.account.multisig.fetch(multisig.publicKey);
 
-    assert.strictEqual(multisigAccount.nonce, nonce);
+    assert.strictEqual(multisigAccount.nonce, multisigSignerNonce);
     assert.ok(multisigAccount.threshold.eq(new anchor.BN(2)));
     assert.deepStrictEqual(multisigAccount.owners, newOwners);
     assert.ok(multisigAccount.ownerSetSeqno === 1);
+  });
+
+  it("Tries to approve the old stale transaction", async () => {
+    assert.rejects(
+      async () => {
+        await program.rpc.approve({
+          accounts: {
+            multisig: multisig.publicKey,
+            transaction: staleTx,
+            owner: ownerD.publicKey,
+          },
+          signers: [ownerD],
+        });
+      },
+      (err) => {
+        // 143 => raw constraint, which is the owner set seq no.
+        assert.ok(err.code === 308);
+        return true;
+      }
+    );
   });
 });

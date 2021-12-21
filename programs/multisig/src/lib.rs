@@ -203,7 +203,9 @@ pub struct CreateTransaction<'info> {
 
 #[derive(Accounts)]
 pub struct Approve<'info> {
-    #[account(constraint = multisig.owner_set_seqno == transaction.owner_set_seqno)]
+    #[account(
+        constraint = multisig.owner_set_seqno == transaction.owner_set_seqno @ ErrorCode::InvalidOwnerSetSeqno,
+    )]
     multisig: ProgramAccount<'info, Multisig>,
     #[account(mut, has_one = multisig)]
     transaction: ProgramAccount<'info, Transaction>,
@@ -325,4 +327,6 @@ pub enum ErrorCode {
     InvalidThreshold,
     #[msg("Owners must be unique")]
     UniqueOwners,
+    #[msg("Invalid owner set seqno")]
+    InvalidOwnerSetSeqno,
 }
