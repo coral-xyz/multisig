@@ -23,7 +23,7 @@ use crate::propose::jet::ReserveParameters;
 
 #[derive(Parser)]
 pub struct Opts {
-    #[clap(short, long, default_value = "~/.config/jet-multisig.toml")]
+    #[clap(short, long, default_value = "~/.config/multisig.toml")]
     pub config: String,
 
     #[clap(short, long)]

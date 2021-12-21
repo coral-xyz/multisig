@@ -16,4 +16,4 @@ cpi = ["no-entrypoint"]
 default = []
 
 [dependencies]
-anchor-lang = { git = "https://github.com/jet-lab/anchor" }
+anchor-lang = { git = "https://github.com/jet-lab/anchor", branch = "accounts" }

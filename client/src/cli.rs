@@ -2,7 +2,6 @@ use anchor_client::solana_sdk::pubkey::Pubkey;
 use anyhow::Result;
 use clap::Parser;
 use paste::paste;
-use serum_multisig::{Multisig, Transaction as SerumTxn};
 
 use crate::propose::{bpf, multisig, token};
 use crate::service::MultisigService;
@@ -11,7 +10,7 @@ pub const MISSING_MULTISIG: &str = "This operation requires a preexisting multis
 
 #[derive(Parser)]
 pub struct Opts {
-    #[clap(short, long, default_value = "~/.config/jet-multisig.toml")]
+    #[clap(short, long, default_value = "~/.config/multisig.toml")]
     pub config: String,
 
     #[clap(short, long)]
@@ -36,7 +35,9 @@ pub enum MultisigCommand {
     Approve(Transaction),
     Execute(Transaction),
     Get,
-    GetTransaction(Key),
+    List,
+    GetProposal(Key),
+    ListProposals,
     InspectProposal(Key),
 }
 
@@ -152,20 +153,23 @@ pub fn run_multisig_command(
                 .execute(multisig.expect(MISSING_MULTISIG), cmd.transaction)?;
         }
         MultisigCommand::Get => {
-            let ms = service
-                .program
-                .client
-                .account::<Multisig>(multisig.expect(MISSING_MULTISIG))?;
-            let signer = service.program.signer(multisig.expect(MISSING_MULTISIG)).0;
+            let ms = service.program.get_multisig()?;
             println!("{:#?}", ms);
-            println!("signer = {:?}", signer);
         }
-        MultisigCommand::GetTransaction(cmd) => {
-            let tx = service.program.client.account::<SerumTxn>(cmd.key)?;
+        MultisigCommand::List => {
+            let mss = service.program.list_multisigs()?;
+            println!("{:#?}", mss);
+        }
+        MultisigCommand::GetProposal(cmd) => {
+            let tx = service.program.get_transaction(cmd.key)?;
             println!("{:#?}", tx);
         }
+        MultisigCommand::ListProposals => {
+            let txs = service.program.list_transactions()?;
+            println!("{:#?}", txs);
+        }
         MultisigCommand::InspectProposal(cmd) => {
-            let tx = service.program.client.account::<SerumTxn>(cmd.key)?;
+            let tx = service.program.get_transaction(cmd.key)?;
             service.inspect_proposal(&tx)?;
         }
     }

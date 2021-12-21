@@ -14,8 +14,9 @@ use anchor_client::solana_sdk::{
 use anchor_client::{Cluster, Program, RequestNamespace};
 use anyhow::Result;
 use rand::rngs::OsRng;
-use serum_multisig::{Transaction, TransactionAccount};
+use serum_multisig::{Transaction, TransactionAccount, Multisig};
 
+use crate::cli::MISSING_MULTISIG;
 use crate::config::MultisigConfig;
 use crate::request_builder::RequestBuilder;
 
@@ -27,6 +28,29 @@ pub struct MultisigGateway<'a> {
 }
 
 impl<'a> MultisigGateway<'a> {
+
+    pub fn get_multisig(&self) -> Result<Multisig> {
+        Ok(self.client.account::<Multisig>(self.config.multisig.expect(MISSING_MULTISIG))?)
+    }
+
+    pub fn get_transaction(&self, tx: Pubkey) -> Result<Transaction> {
+        Ok(self.client.account::<Transaction>(tx)?)
+    }
+
+    pub fn list_multisigs(&self) -> Result<Vec<(Pubkey, Multisig)>> {
+        Ok(self.client.accounts::<Multisig>(vec![])?)
+    }
+
+    pub fn list_transactions(&self) -> Result<Vec<(Pubkey, Transaction)>> {
+        Ok(self.client.accounts::<Transaction>(vec![])?
+            .into_iter()
+            .filter(|(_, acct)| match self.config.multisig {
+                Some(ms) => acct.multisig == ms,
+                None => true,
+            })
+            .collect())
+    }
+
     pub fn signer(&self, multisig: Pubkey) -> (Pubkey, u8) {
         Pubkey::find_program_address(&[&multisig.to_bytes()], &self.client.id())
     }

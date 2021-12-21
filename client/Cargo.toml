@@ -5,12 +5,11 @@ edition = "2018"
 
 
 [dependencies]
-anchor-client = { git = "https://github.com/jet-lab/anchor" }
-anchor-spl = { git = "https://github.com/jet-lab/anchor" }
+anchor-client = { git = "https://github.com/jet-lab/anchor", branch = "accounts" }
+anchor-spl = { git = "https://github.com/jet-lab/anchor", branch = "accounts" }
 spl-token = "3.2.0"
 serum-multisig = { path = "../programs/multisig", features = ["no-entrypoint"]  }
 custody = { path = "../../custody/programs/custody", features = ["no-entrypoint"]  }
-jet = { git = "https://github.com/jet-lab/jet-v1" }
 shellexpand = "2.1.0"
 anyhow = "1.0.32"
 rand = "0.7.3"
@@ -20,7 +19,7 @@ serde = "1.0"
 serde_with = "1.3"
 serde_json = "1.0"
 bincode = "1.3"
-clap = "3.0.0-beta.5"
+clap = { version = "3.0.0-beta.5", features = [ "derive" ] }
 solana-logger = "1.7.11"
 solana-remote-wallet = "1.7.11"
 solana-clap-utils = "1.7.11"
