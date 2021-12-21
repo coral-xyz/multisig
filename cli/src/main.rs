@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use anyhow::Result;
 
 use clap::Parser;
@@ -12,6 +14,6 @@ fn main() -> Result<()> {
     let multisig_config: MultisigConfig = config::load(&cli_opts.config)?;
     let multisig = cli_opts.multisig.or(multisig_config.multisig);
     let payer = multisig_client::load_payer(&multisig_config.wallet);
-    let service = multisig_client::load_service(payer.into(), &multisig_config)?;
+    let service = multisig_client::load_service(Rc::new(payer), &multisig_config)?;
     run_job(cli_opts.job, &service, multisig)
 }
