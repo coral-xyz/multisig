@@ -194,7 +194,7 @@ describe("multisig", () => {
   });
 
   it("D tries to approve the old stale transaction (created by A) and fails", async () => {
-    assert.rejects(
+    await assert.rejects(
       async () => {
         await program.rpc.approve({
           accounts: {
