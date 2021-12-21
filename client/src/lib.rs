@@ -3,7 +3,6 @@ pub mod config;
 pub mod gateway;
 pub mod instruction_data;
 pub mod propose;
-pub mod request_builder;
 pub mod service;
 
 use std::rc::Rc;
