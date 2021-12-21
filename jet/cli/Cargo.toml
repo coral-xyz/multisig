@@ -7,16 +7,22 @@ edition = "2018"
 [dependencies]
 multisig-client = { path = "../../client" }
 multisig-cli = { path = "../../cli" }
-anchor-client = { git = "https://github.com/jet-lab/anchor", branch = "accounts" }
+anchor-client = { git = "https://github.com/jet-lab/anchor" }
 anyhow = "1.0.32"
-clap = "3.0.0-beta.5"
+clap = { version = "3.0.0-rc.7", features = [ "derive" ] }
 jet = { git = "https://github.com/jet-lab/jet-v1" }
 solana-logger = "1.7.11"
 serum-multisig = { path = "../../programs/multisig", features = ["no-entrypoint"]  }
 paste = "1.0.5"
-anchor-spl = { git = "https://github.com/jet-lab/anchor", branch = "accounts" }
+anchor-spl = { git = "https://github.com/jet-lab/anchor" }
 custody = { path = "../../../custody/programs/custody", features = ["no-entrypoint"]  }
 rand = "0.7.3"
 serde = "1.0"
 serde_derive = "1.0"
 serde_with = "1.3"
+
+# for compatibility with jet programs
+jet-anchor-lang = { package = "anchor-lang", version = "0.18.2" }
+custody-anchor-lang = { package = "anchor-lang", git = "https://github.com/jet-lab/anchor" }
+multisig-anchor-client = { package = "anchor-client", git = "https://github.com/jet-lab/anchor", branch = "accounts" }
+multisig-anchor-spl = { package = "anchor-spl", git = "https://github.com/jet-lab/anchor", branch = "accounts" }

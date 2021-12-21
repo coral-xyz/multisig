@@ -4,8 +4,11 @@ pub mod gateway;
 pub mod instruction_data;
 pub mod propose;
 pub mod service;
+pub mod compat;
 
 use std::rc::Rc;
+
+pub use anchor_client;
 
 use anchor_client::solana_sdk::{signer::{Signer, SignerError}, signature::Signature, pubkey::Pubkey};
 use anyhow::Result;

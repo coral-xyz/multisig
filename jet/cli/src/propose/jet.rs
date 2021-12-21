@@ -5,9 +5,13 @@ use anchor_spl::token;
 use anyhow::Result;
 use jet::instructions::init_reserve::InitReserveBumpSeeds;
 use jet::state::{MarketFlags, ReserveConfig};
+use multisig_client::{implement_anchor_lang_compatibility};
 use multisig_client::service::MultisigService;
 use rand::rngs::OsRng;
 use serde_derive::Deserialize;
+
+
+implement_anchor_lang_compatibility!(jet_anchor_lang);
 
 #[derive(Deserialize)]
 pub struct ReserveParameters {
@@ -34,7 +38,7 @@ pub struct ReserveParameters {
     manage_fee_collection_threshold: u64,
     manage_fee_rate: u16,
     loan_origination_fee: u16,
-    liquidation_slippage: u16,
+    confidence_threshold: u16,
     liquidation_dex_trade_max: u64,
 }
 
@@ -78,12 +82,12 @@ pub fn propose_init_reserve(
         deposit_note_mint: deposit_note_mint_bump,
         loan_note_mint: loan_note_mint_bump,
     };
-    let builder = service.program.request().signer(&reserve);
+    let builder = service.program.client.request().signer(&reserve);
     let proposal = service.propose_anchor_instruction(
         Option::Some(builder),
         multisig,
         jet::id(),
-        jet::accounts::InitializeReserve {
+        wrap(jet::accounts::InitializeReserve {
             market,
             market_authority,
             reserve: reserve.pubkey(),
@@ -103,8 +107,8 @@ pub fn propose_init_reserve(
             owner: service.program.signer(multisig).0,
             system_program: system_program::id(),
             rent: rent::id(),
-        },
-        jet::instruction::InitReserve {
+        }),
+        wrap(jet::instruction::InitReserve {
             config: ReserveConfig {
                 utilization_rate_1: params.utilization_rate_1,
                 utilization_rate_2: params.utilization_rate_2,
@@ -117,13 +121,14 @@ pub fn propose_init_reserve(
                 manage_fee_collection_threshold: params.manage_fee_collection_threshold,
                 manage_fee_rate: params.manage_fee_rate,
                 loan_origination_fee: params.loan_origination_fee,
-                liquidation_slippage: params.liquidation_slippage,
+                // liquidation_slippage: params.liquidation_slippage,
+                confidence_threshold: params.confidence_threshold,
                 liquidation_dex_trade_max: params.liquidation_dex_trade_max,
                 _reserved0: 0,
                 _reserved1: [0; 24],
             },
             bump,
-        },
+        }),
     )?;
     Ok((proposal, reserve.pubkey()))
 }
@@ -138,13 +143,13 @@ pub fn propose_set_market_flags(
         None,
         multisig,
         jet::id(),
-        jet::accounts::SetMarketFlags {
+        wrap(jet::accounts::SetMarketFlags {
             market,
             owner: service.program.signer(multisig).0,
-        },
-        jet::instruction::SetMarketFlags {
+        }),
+        wrap(jet::instruction::SetMarketFlags {
             flags: flags.bits(),
-        },
+        }),
     )
 }
 
@@ -158,10 +163,11 @@ pub fn propose_set_market_owner(
         None,
         multisig,
         jet::id(),
-        jet::accounts::SetMarketOwner {
+        wrap(jet::accounts::SetMarketOwner {
             market,
             owner: service.program.signer(multisig).0,
-        },
-        jet::instruction::SetMarketOwner { new_owner },
+        }),
+        wrap(jet::instruction::SetMarketOwner { new_owner }),
     )
 }
+

@@ -5,8 +5,10 @@ use anchor_spl::token::{self, Mint};
 
 use anyhow::{bail, Result};
 use custody::GenerateTokenBumpSeeds;
-use multisig_client::service::MultisigService;
+use multisig_client::{service::MultisigService, implement_anchor_lang_compatibility};
 use std::path::PathBuf;
+
+implement_anchor_lang_compatibility!(custody_anchor_lang);
 
 pub fn propose_custody_generate_token_mint(
     service: &MultisigService,
@@ -46,6 +48,7 @@ pub fn propose_custody_generate_token_mint(
 
     let builder = service
         .program
+        .client
         .request()
         .instruction(system_instruction::create_account(
             &&service.program.payer.pubkey(),
@@ -64,7 +67,7 @@ pub fn propose_custody_generate_token_mint(
         Some(builder),
         multisig,
         custody::id(),
-        custody::accounts::GenerateTokenMint {
+        wrap(custody::accounts::GenerateTokenMint {
             mint: mint.pubkey(),
             seed_vault: seed_vault.0,
             team_vault: team_vault.0,
@@ -75,15 +78,15 @@ pub fn propose_custody_generate_token_mint(
             signer,
             system_program: system_program::id(),
             token_program: anchor_spl::token::ID,
-        },
-        custody::instruction::GenerateTokenMint {
+        }),
+        wrap(custody::instruction::GenerateTokenMint {
             _bump: GenerateTokenBumpSeeds {
                 seed_vault: seed_vault.1,
                 team_vault: team_vault.1,
                 d_vault: d_vault.1,
                 e_vault: e_vault.1,
             },
-        },
+        }),
     )
 }
 
@@ -101,13 +104,13 @@ pub fn propose_custody_transfer_tokens(
         None,
         multisig,
         custody::id(),
-        custody::accounts::TransferFunds {
+        wrap(custody::accounts::TransferFunds {
             vault: source,
             to: target,
             signer: custody_signer,
             authority: multisig_signer,
             token_program: token::ID,
-        },
-        custody::instruction::TransferFunds { amount },
+        }),
+        wrap(custody::instruction::TransferFunds { amount }),
     )
 }

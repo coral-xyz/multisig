@@ -359,6 +359,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "anchor-client"
+version = "0.19.0"
+source = "git+https://github.com/jet-lab/anchor#790fda925857b4bffef50f5e39de075ab8171d17"
+dependencies = [
+ "anchor-lang 0.19.0 (git+https://github.com/jet-lab/anchor)",
+ "anyhow",
+ "regex",
+ "serde",
+ "solana-client",
+ "solana-sdk",
+ "thiserror",
+ "url",
+]
+
+[[package]]
 name = "anchor-derive-accounts"
 version = "0.18.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1819,8 +1834,12 @@ dependencies = [
 name = "jet-multisig-cli"
 version = "0.1.0"
 dependencies = [
- "anchor-client",
+ "anchor-client 0.19.0 (git+https://github.com/jet-lab/anchor?branch=accounts)",
+ "anchor-client 0.19.0 (git+https://github.com/jet-lab/anchor)",
+ "anchor-lang 0.18.2",
+ "anchor-lang 0.19.0 (git+https://github.com/jet-lab/anchor)",
  "anchor-spl 0.19.0 (git+https://github.com/jet-lab/anchor?branch=accounts)",
+ "anchor-spl 0.19.0 (git+https://github.com/jet-lab/anchor)",
  "anyhow",
  "clap 3.0.0-rc.7",
  "custody",
@@ -2065,7 +2084,7 @@ dependencies = [
 name = "multisig-cli"
 version = "0.1.0"
 dependencies = [
- "anchor-client",
+ "anchor-client 0.19.0 (git+https://github.com/jet-lab/anchor?branch=accounts)",
  "anchor-spl 0.19.0 (git+https://github.com/jet-lab/anchor?branch=accounts)",
  "anyhow",
  "bincode",
@@ -2091,7 +2110,7 @@ dependencies = [
 name = "multisig-client"
 version = "0.1.0"
 dependencies = [
- "anchor-client",
+ "anchor-client 0.19.0 (git+https://github.com/jet-lab/anchor?branch=accounts)",
  "anchor-spl 0.19.0 (git+https://github.com/jet-lab/anchor?branch=accounts)",
  "anyhow",
  "bincode",
