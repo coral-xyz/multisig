@@ -206,7 +206,7 @@ describe("multisig", () => {
         });
       },
       (err) => {
-        // 143 => raw constraint, which is the owner set seq no.
+        // InvaldOwnerSetSeqno error code.
         assert.ok(err.code === 308);
         return true;
       }
