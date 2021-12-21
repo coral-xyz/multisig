@@ -10,7 +10,6 @@ anchor-client = { git = "https://github.com/jet-lab/anchor", branch = "accounts"
 anchor-spl = { git = "https://github.com/jet-lab/anchor", branch = "accounts" }
 spl-token = "3.2.0"
 serum-multisig = { path = "../programs/multisig", features = ["no-entrypoint"]  }
-custody = { path = "../../custody/programs/custody", features = ["no-entrypoint"]  }
 shellexpand = "2.1.0"
 anyhow = "1.0.32"
 rand = "0.7.3"
