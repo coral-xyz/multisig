@@ -83,9 +83,9 @@ pub mod mean_multisig {
         tx.data = data;
         tx.signers = signers;
         tx.multisig = *ctx.accounts.multisig.to_account_info().key;
+        tx.executed_on = 0;
         tx.owner_set_seqno = ctx.accounts.multisig.owner_set_seqno;
         tx.created_on = clock.unix_timestamp as u64;
-        tx.executed_on = 0;
         tx.operation = operation;
 
         let multisig = &mut ctx.accounts.multisig; 
@@ -351,12 +351,12 @@ pub enum ErrorCode {
     NotEnoughSigners,
     #[msg("Cannot delete a transaction that has been signed by an owner.")]
     TransactionAlreadySigned,
+    #[msg("Operation overflow")]
+    Overflow,
     #[msg("Cannot delete a transaction the owner did not create.")]
     UnableToDelete,
     #[msg("The given transaction has already been executed.")]
     AlreadyExecuted,
     #[msg("Threshold must be less than or equal to the number of owners.")]
-    InvalidThreshold,
-    #[msg("Operation overflow")]
-    Overflow,
+    InvalidThreshold
 }
