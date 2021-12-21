@@ -153,7 +153,7 @@ pub fn run_multisig_command(
                 .execute(multisig.expect(MISSING_MULTISIG), cmd.transaction)?;
         }
         MultisigCommand::Get => {
-            let ms = service.program.get_multisig()?;
+            let ms = service.program.get_multisig(multisig.expect(MISSING_MULTISIG))?;
             println!("{:#?}", ms);
         }
         MultisigCommand::List => {
@@ -165,7 +165,7 @@ pub fn run_multisig_command(
             println!("{:#?}", tx);
         }
         MultisigCommand::ListProposals => {
-            let txs = service.program.list_transactions()?;
+            let txs = service.program.list_transactions(multisig)?;
             println!("{:#?}", txs);
         }
         MultisigCommand::InspectProposal(cmd) => {

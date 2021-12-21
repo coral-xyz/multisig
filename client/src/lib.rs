@@ -6,13 +6,14 @@ pub mod propose;
 pub mod request_builder;
 pub mod service;
 
-use anchor_client::solana_sdk::{signature::Keypair, signer::Signer};
+use std::rc::Rc;
+
+use anchor_client::solana_sdk::signer::Signer;
 use anyhow::Result;
 
 use clap2::ArgMatches;
 use config::MultisigConfig;
 use gateway::MultisigGateway;
-use rand::rngs::OsRng;
 use service::MultisigService;
 use solana_clap_utils::keypair::DefaultSigner;
 use solana_remote_wallet::remote_wallet::maybe_wallet_manager;
@@ -28,13 +29,11 @@ pub fn load_payer(path: &str) -> Box<dyn Signer> {
 }
 
 pub fn load_service<'a>(
-    payer: &'a dyn Signer,
+    payer: Rc<dyn Signer>,
     config: &'a MultisigConfig,
 ) -> Result<MultisigService<'a>> {
-    // todo change anchor to use Signer so we don't need this dummy keypair that we have to be careful not to use
-    let keypair = Keypair::generate(&mut OsRng);
     let cluster = config.cluster();
-    let connection = anchor_client::Client::new(cluster.clone(), keypair);
+    let connection = anchor_client::Client::new(cluster.clone(), payer.clone());
     let client = connection.program(config.program_id);
 
     Ok(MultisigService {

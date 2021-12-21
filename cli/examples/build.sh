@@ -1,4 +1,5 @@
 cargo build -p multisig-cli
 multisig() { 
-    target/debug/cli $@
+    target/debug/multisig-cli $@
 }
+export RUST_BACKTRACE=1

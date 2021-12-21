@@ -4,6 +4,8 @@ extern crate anyhow;
 extern crate rand;
 extern crate serum_multisig;
 
+use std::rc::Rc;
+
 use anchor_client::solana_sdk::instruction::AccountMeta;
 use anchor_client::solana_sdk::system_program;
 use anchor_client::solana_sdk::{
@@ -11,26 +13,24 @@ use anchor_client::solana_sdk::{
     signature::{Keypair, Signer},
     system_instruction, sysvar,
 };
-use anchor_client::{Cluster, Program, RequestNamespace};
+use anchor_client::{Cluster, Program, RequestBuilder};
 use anyhow::Result;
 use rand::rngs::OsRng;
 use serum_multisig::{Transaction, TransactionAccount, Multisig};
 
-use crate::cli::MISSING_MULTISIG;
 use crate::config::MultisigConfig;
-use crate::request_builder::RequestBuilder;
 
 pub struct MultisigGateway<'a> {
     pub client: Program,
     pub cluster: Cluster,
-    pub payer: &'a dyn Signer,
+    pub payer: Rc<dyn Signer>,
     pub config: &'a MultisigConfig,
 }
 
 impl<'a> MultisigGateway<'a> {
 
-    pub fn get_multisig(&self) -> Result<Multisig> {
-        Ok(self.client.account::<Multisig>(self.config.multisig.expect(MISSING_MULTISIG))?)
+    pub fn get_multisig(&self, multisig: Pubkey) -> Result<Multisig> {
+        Ok(self.client.account::<Multisig>(multisig)?)
     }
 
     pub fn get_transaction(&self, tx: Pubkey) -> Result<Transaction> {
@@ -41,10 +41,10 @@ impl<'a> MultisigGateway<'a> {
         Ok(self.client.accounts::<Multisig>(vec![])?)
     }
 
-    pub fn list_transactions(&self) -> Result<Vec<(Pubkey, Transaction)>> {
+    pub fn list_transactions(&self, multisig: Option<Pubkey>) -> Result<Vec<(Pubkey, Transaction)>> {
         Ok(self.client.accounts::<Transaction>(vec![])?
             .into_iter()
-            .filter(|(_, acct)| match self.config.multisig {
+            .filter(|(_, acct)| match multisig {
                 Some(ms) => acct.multisig == ms,
                 None => true,
             })
@@ -65,7 +65,8 @@ impl<'a> MultisigGateway<'a> {
     pub fn create_multisig(&self, threshold: u64, owners: Vec<Pubkey>) -> Result<(Pubkey, Pubkey)> {
         let multisig_acct = Keypair::generate(&mut OsRng);
         let (signer, bump) = self.signer(multisig_acct.pubkey());
-        self.request()
+        self.client
+            .request()
             .instruction(system_instruction::create_account(
                 &&self.payer.pubkey(),
                 &multisig_acct.pubkey(),
@@ -86,7 +87,7 @@ impl<'a> MultisigGateway<'a> {
                 nonce: bump,
             })
             .signer(&multisig_acct)
-            .send(true)?;
+            .send()?;
         Ok((multisig_acct.pubkey(), signer))
     }
 
@@ -94,7 +95,8 @@ impl<'a> MultisigGateway<'a> {
         let owner = self.payer.pubkey();
         let (delegate_list, bump) = self.delegate_list(multisig, owner);
 
-        self.request()
+        self.client
+            .request()
             .accounts(serum_multisig::accounts::CreateDelegateList {
                 multisig,
                 delegate_list,
@@ -102,7 +104,7 @@ impl<'a> MultisigGateway<'a> {
                 system_program: system_program::ID,
             })
             .args(serum_multisig::instruction::CreateDelegateList { bump, delegates })
-            .send(true)?;
+            .send()?;
 
         Ok(())
     }
@@ -113,14 +115,15 @@ impl<'a> MultisigGateway<'a> {
         delegate_list: Pubkey,
         delegates: Vec<Pubkey>,
     ) -> Result<()> {
-        self.request()
+        self.client
+            .request()
             .accounts(serum_multisig::accounts::SetDelegateList {
                 multisig,
                 delegate_list,
                 authority: self.payer.pubkey(),
             })
             .args(serum_multisig::instruction::SetDelegateList { delegates })
-            .send(true)?;
+            .send()?;
 
         Ok(())
     }
@@ -135,7 +138,7 @@ impl<'a> MultisigGateway<'a> {
     ) -> Result<Pubkey> {
         let tx_acct = Keypair::generate(&mut OsRng);
         let mut builder = builder
-            .unwrap_or_else(|| self.request())
+            .unwrap_or_else(|| self.client.request())
             .instruction(system_instruction::create_account(
                 &&self.payer.pubkey(),
                 &tx_acct.pubkey(),
@@ -162,27 +165,29 @@ impl<'a> MultisigGateway<'a> {
             }
         }
 
-        builder.signer(&tx_acct).send(true)?;
+        builder.signer(&tx_acct).send()?;
         Ok(tx_acct.pubkey())
     }
 
     pub fn approve(&self, multisig: Pubkey, transaction: Pubkey) -> Result<()> {
         match &self.config.delegation {
             None => {
-                self.request()
+                self.client
+                    .request()
                     .accounts(serum_multisig::accounts::Approve {
                         multisig,
                         transaction,
                         owner: self.payer.pubkey(),
                     })
                     .args(serum_multisig::instruction::Approve {})
-                    .send(true)?;
+                    .send()?;
             }
 
             Some(d_config) => {
                 let (delegate_list, _) = self.delegate_list(multisig, d_config.owner);
 
-                self.request()
+                self.client
+                    .request()
                     .accounts(serum_multisig::accounts::DelegateApprove {
                         multisig,
                         transaction,
@@ -190,7 +195,7 @@ impl<'a> MultisigGateway<'a> {
                         delegate: self.payer.pubkey(),
                     })
                     .args(serum_multisig::instruction::DelegateApprove {})
-                    .send(true)?;
+                    .send()?;
             }
         }
 
@@ -214,7 +219,7 @@ impl<'a> MultisigGateway<'a> {
             })
             .collect::<Vec<AccountMeta>>();
 
-        let sig = self
+        let sig = self.client
             .request()
             .accounts(serum_multisig::accounts::ExecuteTransaction {
                 multisig,
@@ -229,19 +234,9 @@ impl<'a> MultisigGateway<'a> {
                 is_signer: false,
                 is_writable: false,
             }])
-            .send(true)?;
+            .send()?;
 
         println!("confirmed: {}", sig);
         Ok(())
-    }
-
-    pub fn request(&self) -> RequestBuilder {
-        RequestBuilder::from(
-            self.client.id(),
-            &self.cluster.url(),
-            self.payer,
-            None,
-            RequestNamespace::Global,
-        )
     }
 }
