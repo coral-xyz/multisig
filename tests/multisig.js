@@ -105,7 +105,7 @@ describe("multisig", () => {
     staleTx = transaction.publicKey;
   });
 
-  it("Change the owner set to A, B, D", async () => {
+  it("B and C change the owner set to B, C, D", async () => {
     const accounts = [
       {
         pubkey: multisig.publicKey,
@@ -118,7 +118,7 @@ describe("multisig", () => {
         isSigner: true,
       },
     ];
-    const newOwners = [ownerA.publicKey, ownerB.publicKey, ownerD.publicKey];
+    const newOwners = [ownerB.publicKey, ownerC.publicKey, ownerD.publicKey];
     const data = program.coder.instruction.encode("set_owners", {
       owners: newOwners,
     });
@@ -128,7 +128,7 @@ describe("multisig", () => {
       accounts: {
         multisig: multisig.publicKey,
         transaction: transaction.publicKey,
-        proposer: ownerA.publicKey,
+        proposer: ownerB.publicKey,
         rent: anchor.web3.SYSVAR_RENT_PUBKEY,
       },
       instructions: [
@@ -137,7 +137,7 @@ describe("multisig", () => {
           txSize
         ),
       ],
-      signers: [transaction, ownerA],
+      signers: [transaction, ownerB],
     });
 
     const txAccount = await program.account.transaction.fetch(
@@ -150,14 +150,14 @@ describe("multisig", () => {
     assert.deepStrictEqual(txAccount.didExecute, false);
     assert.ok(txAccount.ownerSetSeqno === 0);
 
-    // B approves transaction.
+    // C approves transaction.
     await program.rpc.approve({
       accounts: {
         multisig: multisig.publicKey,
         transaction: transaction.publicKey,
-        owner: ownerB.publicKey,
+        owner: ownerC.publicKey,
       },
-      signers: [ownerB],
+      signers: [ownerC],
     });
 
     // Now that we've reached the threshold, send the transactoin.
@@ -193,7 +193,7 @@ describe("multisig", () => {
     assert.ok(multisigAccount.ownerSetSeqno === 1);
   });
 
-  it("Tries to approve the old stale transaction", async () => {
+  it("D tries to approve the old stale transaction (created by A) and fails", async () => {
     assert.rejects(
       async () => {
         await program.rpc.approve({
