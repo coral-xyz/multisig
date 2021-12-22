@@ -1,17 +1,33 @@
+use std::io::ErrorKind;
+
 use anchor_client::{solana_sdk::pubkey::Pubkey, Cluster};
 use anyhow::Result;
 use serde::de::DeserializeOwned;
 use serde_derive::Deserialize;
 
-pub fn load<'a, T>(path: &str) -> Result<T>
-where
-    T: DeserializeOwned,
-{
+pub fn load<'a, T: DeserializeOwned>(path: &str) -> Result<T> {
     let path = &*shellexpand::tilde(path);
-    let conf_str =
-        std::fs::read_to_string(path).expect(&format!("Could not load config at {}", path));
+    let conf_str = read_to_string(path)?;
     let config: T = toml::from_str(&conf_str)?;
     return Ok(config);
+}
+
+/// Same behavior as std::fs::read_to_string, except
+/// it tells you the filename when it can't be found
+fn read_to_string<P>(path: P) -> std::io::Result<String>
+where
+    P: AsRef<std::path::Path> + std::fmt::Display + Copy,
+{
+    std::fs::read_to_string(path).map_err(|e| {
+        if e.kind() == ErrorKind::NotFound {
+            std::io::Error::new(
+                ErrorKind::NotFound,
+                format!("{}: {}", e, path),
+            )
+        } else {
+            e
+        }
+    })
 }
 
 #[derive(Deserialize, Debug)]
