@@ -16,7 +16,7 @@ use anyhow::Result;
 use clap2::ArgMatches;
 use config::MultisigConfig;
 use gateway::MultisigGateway;
-use service::MultisigService;
+use service::{MultisigService, ProposalInspector};
 use solana_clap_utils::keypair::DefaultSigner;
 use solana_remote_wallet::remote_wallet::maybe_wallet_manager;
 
@@ -33,6 +33,7 @@ pub fn load_payer(path: &str) -> LazilyFailingSigner {
 pub fn load_service<'a>(
     payer: Rc<dyn Signer>,
     config: &'a MultisigConfig,
+    inspector: Option<Box<dyn ProposalInspector>>,
 ) -> Result<MultisigService<'a>> {
     let cluster = config.cluster();
     let connection = anchor_client::Client::new(cluster.clone(), payer.clone());
@@ -45,6 +46,7 @@ pub fn load_service<'a>(
             payer,
             config,
         },
+        inspector
     })
 }
 

@@ -3,7 +3,7 @@ use std::rc::Rc;
 use anyhow::Result;
 
 use clap::Parser;
-use cli::{run_job, Opts};
+use cli::{run_job, Opts, JetProposalInspector};
 use multisig_client::config::{self, MultisigConfig};
 
 mod cli;
@@ -15,6 +15,10 @@ fn main() -> Result<()> {
     let multisig_config: MultisigConfig = config::load(&cli_opts.config)?;
     let multisig = cli_opts.multisig.or(multisig_config.multisig);
     let payer = multisig_client::load_payer(&multisig_config.wallet);
-    let service = multisig_client::load_service(Rc::new(payer), &multisig_config)?;
+    let service = multisig_client::load_service(
+        Rc::new(payer),
+        &multisig_config,
+        Some(Box::new(JetProposalInspector))
+    )?;
     run_job(cli_opts.job, &service, multisig)
 }

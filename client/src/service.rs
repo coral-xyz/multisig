@@ -1,18 +1,18 @@
 use crate::gateway::MultisigGateway;
 /// Extra business logic built on top of multisig program's core functionality
 use anchor_client::{
-    anchor_lang::{AnchorDeserialize, InstructionData, ToAccountMetas},
+    anchor_lang::{InstructionData, ToAccountMetas},
     solana_sdk::{
         bpf_loader_upgradeable, instruction::Instruction,
         loader_upgradeable_instruction::UpgradeableLoaderInstruction, pubkey::Pubkey,
-    }, RequestBuilder,
+    }, RequestBuilder, Program,
 };
-use anchor_spl::token::{Mint, TokenAccount};
 use anyhow::Result;
 use serum_multisig::{DelegateList, Transaction, TransactionAccount};
 
 pub struct MultisigService<'a> {
     pub program: MultisigGateway<'a>,
+    pub inspector: Option<Box<dyn ProposalInspector>>,
 }
 
 impl<'a> MultisigService<'a> {
@@ -128,6 +128,12 @@ impl<'a> MultisigService<'a> {
     }
 
     pub fn inspect_proposal(&self, proposed_tx: &Transaction) -> Result<()> {
+        if let Some(inspector) = &self.inspector {
+            if inspector.inspect_proposal(&self.program.client, proposed_tx)? == true {
+                return Ok(());
+            }
+        }
+
         match proposed_tx.program_id {
             pid if pid == bpf_loader_upgradeable::ID => {
                 let loader_instruction =
@@ -149,71 +155,15 @@ impl<'a> MultisigService<'a> {
                     _ => (),
                 }
             }
-
-            pid if pid == custody::ID => {
-                let mut instr_hash = [0u8; 8];
-                instr_hash.copy_from_slice(&proposed_tx.data[..8]);
-
-                match instr_hash {
-                    hash if hash == instr_sighash("generate_token_mint") => {
-                        println!("Proposal to generate initial tokens");
-
-                        let mint = proposed_tx.accounts[0].pubkey;
-                        println!("Proposed mint: {}", mint);
-
-                        return Ok(());
-                    }
-
-                    hash if hash == instr_sighash("transfer_funds") => {
-                        println!("Proposal to transfer funds to an account");
-
-                        let args = custody::instruction::TransferFunds::try_from_slice(
-                            &proposed_tx.data[8..],
-                        )?;
-                        let vault = proposed_tx.accounts[0].pubkey;
-                        let target = proposed_tx.accounts[1].pubkey;
-
-                        let vault_account = self.program.client.account::<TokenAccount>(vault)?;
-                        let mint_account =
-                            self.program.client.account::<Mint>(vault_account.mint)?;
-
-                        let base = 10f64.powf(mint_account.decimals as f64);
-                        let proposed_amount = (args.amount as f64) / base;
-                        let vault_amount = (vault_account.amount as f64) / base;
-
-                        println!("Transferring from: {}", vault);
-                        println!("Custodied amount: {}", vault_amount);
-                        println!(
-                            "Custodied remaining after the transfer: {}",
-                            vault_amount - proposed_amount
-                        );
-                        println!();
-                        println!("**TRANSFER AMOUNT**: {}", proposed_amount);
-                        println!();
-                        println!("**TRANSFER TO**: {}", target);
-
-                        return Ok(());
-                    }
-
-                    _ => (),
-                }
-            }
-
             _ => (),
         }
 
         println!("unknown proposal!");
         Ok(())
+        
     }
 }
 
-fn instr_sighash(name: &str) -> [u8; 8] {
-    let preimage = format!("global:{}", name);
-
-    let mut result = [0u8; 8];
-
-    result.copy_from_slice(
-        &anchor_client::solana_sdk::hash::hash(preimage.as_bytes()).to_bytes()[..8],
-    );
-    result
+pub trait ProposalInspector {
+    fn inspect_proposal(&self, program: &Program, proposed_tx: &Transaction) -> Result<bool>;
 }
