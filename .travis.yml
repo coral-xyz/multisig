@@ -5,8 +5,8 @@ rust:
 env:
   global:
     - NODE_VERSION="v14.7.0"
-    - SOLANA_VERSION="v1.7.11"
-    - ANCHOR_VERSION="v0.14.0"
+    - SOLANA_VERSION="v1.8.0"
+    - ANCHOR_VERSION="v0.18.2"
 
 before_deploy:
   - anchor build --verifiable
