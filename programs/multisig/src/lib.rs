@@ -185,7 +185,7 @@ pub mod serum_multisig {
 
 #[derive(Accounts)]
 pub struct CreateMultisig<'info> {
-    #[account(zero)]
+    #[account(zero, signer)]
     multisig: ProgramAccount<'info, Multisig>,
     rent: Sysvar<'info, Rent>,
 }
