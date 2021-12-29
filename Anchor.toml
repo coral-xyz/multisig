@@ -11,4 +11,4 @@ serum_multisig = "6tbPiQLgTU4ySYWyZGXbnVSAEzLc1uF8t5kJPXXgBmRP"
 serum_multisig = "F3Uf5F61dmht1xuNNNkk3jnzj82TY56vVjVEhZALRkN"
 
 [scripts]
-test = "mocha -t 1000000 tests/"
+test = "npx mocha -t 1000000 tests/"
