@@ -189,7 +189,6 @@ pub mod serum_multisig {
 pub struct CreateMultisig<'info> {
     #[account(zero, signer)]
     multisig: ProgramAccount<'info, Multisig>,
-    rent: Sysvar<'info, Rent>,
 }
 
 #[derive(Accounts)]
@@ -200,7 +199,6 @@ pub struct CreateTransaction<'info> {
     // One of the owners. Checked in the handler.
     #[account(signer)]
     proposer: AccountInfo<'info>,
-    rent: Sysvar<'info, Rent>,
 }
 
 #[derive(Accounts)]
