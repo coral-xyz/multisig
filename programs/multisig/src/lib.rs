@@ -196,7 +196,6 @@ pub struct CreateTransaction<'info> {
     #[account(zero)]
     transaction: Box<Account<'info, Transaction>>,
     // One of the owners. Checked in the handler.
-    #[account()]
     proposer: Signer<'info>,
     rent: Sysvar<'info, Rent>,
 }
@@ -208,7 +207,6 @@ pub struct Approve<'info> {
     #[account(mut, has_one = multisig)]
     transaction: Box<Account<'info, Transaction>>,
     // One of the multisig owners. Checked in the handler.
-    #[account()]
     owner: Signer<'info>,
 }
 
