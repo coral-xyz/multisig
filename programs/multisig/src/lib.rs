@@ -54,6 +54,7 @@ pub mod serum_multisig {
         pid: Pubkey,
         accs: Vec<TransactionAccount>,
         data: Vec<u8>,
+        successor: Option<Pubkey>,
     ) -> Result<()> {
         let owner_index = ctx
             .accounts
@@ -75,6 +76,7 @@ pub mod serum_multisig {
         tx.multisig = *ctx.accounts.multisig.to_account_info().key;
         tx.did_execute = false;
         tx.owner_set_seqno = ctx.accounts.multisig.owner_set_seqno;
+        tx.successor = successor;
 
         Ok(())
     }
@@ -183,6 +185,17 @@ pub mod serum_multisig {
 
         Ok(())
     }
+
+    // Move transaction rent exemption SOL
+    pub fn drop_transaction(ctx: Context<DropTransaction>) -> Result<()> {
+        let tx = ctx.accounts.transaction.to_account_info();
+        let mut tx_balance = tx.try_borrow_mut_lamports()?;
+        let successor = ctx.accounts.successor.to_account_info();
+        let mut successor_balance = successor.try_borrow_mut_lamports()?;
+        **successor_balance = (**successor_balance).checked_add(**tx_balance).unwrap();
+        **tx_balance = 0;
+        Ok(())
+    }
 }
 
 #[derive(Accounts)]
@@ -239,6 +252,20 @@ pub struct ExecuteTransaction<'info> {
     transaction: ProgramAccount<'info, Transaction>,
 }
 
+#[derive(Accounts)]
+pub struct DropTransaction<'info> {
+    multisig: ProgramAccount<'info, Multisig>,
+    #[account(
+        mut,
+        has_one = multisig,
+        constraint = transaction.did_execute == true,
+        constraint = transaction.successor == Some(*successor.key),
+    )]
+    transaction: ProgramAccount<'info, Transaction>,
+    #[account(mut)]
+    successor: AccountInfo<'info>,
+}
+
 #[account]
 pub struct Multisig {
     pub owners: Vec<Pubkey>,
@@ -263,6 +290,8 @@ pub struct Transaction {
     pub did_execute: bool,
     // Owner set sequence number.
     pub owner_set_seqno: u32,
+    // Account which receive rent exemption SOL after transaction executing.
+    pub successor: Option<Pubkey>,
 }
 
 impl From<&Transaction> for Instruction {
@@ -329,4 +358,6 @@ pub enum ErrorCode {
     InvalidThreshold,
     #[msg("Owners must be unique")]
     UniqueOwners,
+    #[msg("Invalid successor account.")]
+    InvalidSuccessor,
 }
