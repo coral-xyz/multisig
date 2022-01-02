@@ -44,27 +44,17 @@ describe("multisig", () => {
     assert.deepStrictEqual(multisigAccount.owners, owners);
     assert.ok(multisigAccount.ownerSetSeqno === 0);
 
-    const pid = program.programId;
-    const accounts = [
-      {
-        pubkey: multisig.publicKey,
-        isWritable: true,
-        isSigner: false,
-      },
-      {
-        pubkey: multisigSigner,
-        isWritable: false,
-        isSigner: true,
-      },
-    ];
     const newOwners = [ownerA.publicKey, ownerB.publicKey, ownerD.publicKey];
-    const data = program.coder.instruction.encode("set_owners", {
-      owners: newOwners,
+    const ix = program.instruction.setOwners(newOwners, {
+      accounts: {
+        multisig: multisig.publicKey,
+        multisigSigner,
+      }
     });
 
     const transaction = anchor.web3.Keypair.generate();
     const txSize = 1000; // Big enough, cuz I'm lazy.
-    await program.rpc.createTransaction(pid, accounts, data, {
+    await program.rpc.createTransaction(ix.programId, ix.keys, ix.data, {
       accounts: {
         multisig: multisig.publicKey,
         transaction: transaction.publicKey,
@@ -83,9 +73,9 @@ describe("multisig", () => {
       transaction.publicKey
     );
 
-    assert.ok(txAccount.programId.equals(pid));
-    assert.deepStrictEqual(txAccount.accounts, accounts);
-    assert.deepStrictEqual(txAccount.data, data);
+    assert.ok(txAccount.programId.equals(ix.programId));
+    assert.deepStrictEqual(txAccount.accounts, ix.keys);
+    assert.deepStrictEqual(txAccount.data, ix.data);
     assert.ok(txAccount.multisig.equals(multisig.publicKey));
     assert.deepStrictEqual(txAccount.didExecute, false);
     assert.ok(txAccount.ownerSetSeqno === 0);
@@ -100,18 +90,12 @@ describe("multisig", () => {
       signers: [ownerB],
     });
 
-    // Now that we've reached the threshold, send the transactoin.
     await program.rpc.executeTransaction({
       accounts: {
         multisig: multisig.publicKey,
-        multisigSigner,
         transaction: transaction.publicKey,
       },
-      remainingAccounts: program.instruction.setOwners
-        .accounts({
-          multisig: multisig.publicKey,
-          multisigSigner,
-        })
+      remainingAccounts: ix.keys
         // Change the signer status on the vendor signer since it's signed by the program, not the client.
         .map((meta) =>
           meta.pubkey.equals(multisigSigner)
@@ -119,7 +103,7 @@ describe("multisig", () => {
             : meta
         )
         .concat({
-          pubkey: program.programId,
+          pubkey: ix.programId,
           isWritable: false,
           isSigner: false,
         }),

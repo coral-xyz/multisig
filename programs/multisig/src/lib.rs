@@ -59,6 +59,24 @@ pub mod serum_multisig {
         accs: Vec<TransactionAccount>,
         data: Vec<u8>,
     ) -> Result<()> {
+        let multisig_signer = Pubkey::create_program_address(
+            &[
+                ctx.accounts.multisig.key().as_ref(),
+                &[ctx.accounts.multisig.nonce],
+            ],
+            ctx.program_id,
+        )
+        .expect("valid nonce");
+        if let Some(account) = accs
+            .iter()
+            .find(|account| account.pubkey == multisig_signer)
+        {
+            require!(
+                account.is_signer && !account.is_writable,
+                InvalidMultisigSigner
+            );
+        }
+
         let owner_index = ctx
             .accounts
             .multisig
@@ -167,18 +185,7 @@ pub mod serum_multisig {
         }
 
         // Execute the transaction signed by the multisig.
-        let mut ix: Instruction = (*ctx.accounts.transaction).deref().into();
-        ix.accounts = ix
-            .accounts
-            .iter()
-            .map(|acc| {
-                let mut acc = acc.clone();
-                if &acc.pubkey == ctx.accounts.multisig_signer.key {
-                    acc.is_signer = true;
-                }
-                acc
-            })
-            .collect();
+        let ix: Instruction = (*ctx.accounts.transaction).deref().into();
         let multisig_key = ctx.accounts.multisig.key();
         let seeds = &[multisig_key.as_ref(), &[ctx.accounts.multisig.nonce]];
         let signer = &[&seeds[..]];
@@ -232,11 +239,6 @@ pub struct Auth<'info> {
 pub struct ExecuteTransaction<'info> {
     #[account(constraint = multisig.owner_set_seqno == transaction.owner_set_seqno)]
     multisig: Box<Account<'info, Multisig>>,
-    #[account(
-        seeds = [multisig.key().as_ref()],
-        bump = multisig.nonce,
-    )]
-    multisig_signer: UncheckedAccount<'info>,
     #[account(mut, has_one = multisig)]
     transaction: Box<Account<'info, Transaction>>,
 }
@@ -333,4 +335,6 @@ pub enum ErrorCode {
     InvalidThreshold,
     #[msg("Owners must be unique")]
     UniqueOwners,
+    #[msg("Invalid MultisigSigner in transaction accounts.")]
+    InvalidMultisigSigner,
 }
