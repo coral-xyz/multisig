@@ -49,5 +49,6 @@ jobs:
     - <<: *defaults
       name: Cargo fmt & clippy
       script:
+        - rustup component add rustfmt clippy
         - cargo fmt --all --check
         - cargo clippy --all-targets
