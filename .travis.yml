@@ -49,7 +49,7 @@ jobs:
     - <<: *defaults
       name: Linting & clippy
       script:
-        - npx run lint
+        - npm run lint
         - rustup component add rustfmt clippy
         - cargo-fmt --all -- --check
         - cargo clippy --all-targets
