@@ -49,7 +49,7 @@ describe("multisig", () => {
       accounts: {
         multisig: multisig.publicKey,
         multisigSigner,
-      }
+      },
     });
 
     const transaction = anchor.web3.Keypair.generate();
