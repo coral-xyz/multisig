@@ -8,6 +8,21 @@ env:
     - SOLANA_VERSION="v1.8.0"
     - ANCHOR_VERSION="v0.18.2"
 
+cache:
+  directories:
+    # solana
+    - $HOME/.cache/solana/
+    - $HOME/.local/share/solana/
+    # Cargo
+    - $HOME/.cargo/bin/
+    - $HOME/.cargo/registry/index/
+    - $HOME/.cargo/registry/cache/
+    - $HOME/.cargo/git/db/
+    - $TRAVIS_BUILD_DIR/target
+    # npm
+    - $HOME/.npm
+    # - $TRAVIS_BUILD_DIR/node_modules    
+
 before_deploy:
   - anchor build --verifiable
   - echo "### SHA256 Checksums" > release_notes.md
@@ -45,10 +60,12 @@ jobs:
     - <<: *defaults
       name: Runs the tests
       script:
+        - npx anchor build
         - npx anchor test
     - <<: *defaults
-      name: Cargo fmt & clippy
+      name: Linting & clippy
       script:
+        - npm run lint
         - rustup component add rustfmt clippy
         - cargo-fmt --all -- --check
         - cargo clippy --all-targets
