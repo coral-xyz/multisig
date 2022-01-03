@@ -37,7 +37,7 @@ pub mod serum_multisig {
     ) -> Result<()> {
         assert_unique_owners(&owners)?;
         require!(threshold > 0, InvalidThreshold);
-        require!(owners.len() > 0, InvalidOwnersLen);
+        require!(!owners.is_empty(), InvalidOwnersLen);
 
         let multisig = &mut ctx.accounts.multisig;
         multisig.owners = owners;
@@ -111,7 +111,7 @@ pub mod serum_multisig {
     // is via a recursive call from execute_transaction -> set_owners.
     pub fn set_owners(ctx: Context<Auth>, owners: Vec<Pubkey>) -> Result<()> {
         assert_unique_owners(&owners)?;
-        require!(owners.len() > 0, InvalidOwnersLen);
+        require!(!owners.is_empty(), InvalidOwnersLen);
 
         let multisig = &mut ctx.accounts.multisig;
 

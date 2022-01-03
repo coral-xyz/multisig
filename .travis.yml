@@ -33,18 +33,22 @@ deploy:
 _defaults: &defaults
   before_install:
   - nvm install $NODE_VERSION
-  - npm install -g mocha
-  - npm install -g @project-serum/anchor
+  - npm ci
   - sudo apt-get install -y pkg-config build-essential libudev-dev
   - sh -c "$(curl -sSfL https://release.solana.com/${SOLANA_VERSION}/install)"
   - export PATH="/home/travis/.local/share/solana/install/active_release/bin:$PATH"
   - export NODE_PATH="/home/travis/.nvm/versions/node/${NODE_VERSION}/lib/node_modules/:${NODE_PATH}"
   - yes | solana-keygen new
-  - cargo install --git https://github.com/project-serum/anchor --tag ${ANCHOR_VERSION} anchor-cli --locked
 
 jobs:
   include:
     - <<: *defaults
       name: Runs the tests
       script:
-        - anchor test
+        - npx anchor test
+    - <<: *defaults
+      name: Cargo fmt & clippy
+      script:
+        - rustup component add rustfmt clippy
+        - cargo-fmt --all -- --check
+        - cargo clippy --all-targets
