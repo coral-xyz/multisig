@@ -60,6 +60,7 @@ jobs:
     - <<: *defaults
       name: Runs the tests
       script:
+        - npx anchor build
         - npx anchor test
     - <<: *defaults
       name: Linting & clippy
