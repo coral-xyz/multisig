@@ -8,6 +8,11 @@ env:
     - SOLANA_VERSION="v1.8.0"
     - ANCHOR_VERSION="v0.18.2"
 
+cache:
+  directories:
+    - $HOME/.cache/solana/
+    - $HOME/.local/share/solana/
+
 before_deploy:
   - anchor build --verifiable
   - echo "### SHA256 Checksums" > release_notes.md
@@ -49,6 +54,7 @@ jobs:
     - <<: *defaults
       name: Linting & clippy
       script:
+        - pwd
         - npm run lint
         - rustup component add rustfmt clippy
         - cargo-fmt --all -- --check
