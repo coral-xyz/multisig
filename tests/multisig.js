@@ -135,13 +135,11 @@ describe("multisig", () => {
 
   it("Assert Unique Owners", async () => {
     const multisig = anchor.web3.Keypair.generate();
-    const [
-      _multisigSigner,
-      nonce,
-    ] = await anchor.web3.PublicKey.findProgramAddress(
-      [multisig.publicKey.toBuffer()],
-      program.programId
-    );
+    const [_multisigSigner, nonce] =
+      await anchor.web3.PublicKey.findProgramAddress(
+        [multisig.publicKey.toBuffer()],
+        program.programId
+      );
     const multisigSize = 200; // Big enough.
 
     const ownerA = anchor.web3.Keypair.generate();
