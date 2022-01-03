@@ -47,8 +47,9 @@ jobs:
       script:
         - npx anchor test
     - <<: *defaults
-      name: Cargo fmt & clippy
+      name: Linting & clippy
       script:
+        - npx run lint
         - rustup component add rustfmt clippy
         - cargo-fmt --all -- --check
         - cargo clippy --all-targets
