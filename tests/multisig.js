@@ -9,13 +9,11 @@ describe("multisig", () => {
 
   it("Tests the multisig program", async () => {
     const multisig = anchor.web3.Keypair.generate();
-    const [
-      multisigSigner,
-      nonce,
-    ] = await anchor.web3.PublicKey.findProgramAddress(
-      [multisig.publicKey.toBuffer()],
-      program.programId
-    );
+    const [multisigSigner, nonce] =
+      await anchor.web3.PublicKey.findProgramAddress(
+        [multisig.publicKey.toBuffer()],
+        program.programId
+      );
     const multisigSize = 200; // Big enough.
 
     const ownerA = anchor.web3.Keypair.generate();
@@ -39,7 +37,9 @@ describe("multisig", () => {
       signers: [multisig],
     });
 
-    let multisigAccount = await program.account.multisig.fetch(multisig.publicKey);
+    let multisigAccount = await program.account.multisig.fetch(
+      multisig.publicKey
+    );
     assert.strictEqual(multisigAccount.nonce, nonce);
     assert.ok(multisigAccount.threshold.eq(new anchor.BN(2)));
     assert.deepStrictEqual(multisigAccount.owners, owners);
@@ -81,7 +81,9 @@ describe("multisig", () => {
       signers: [transaction, ownerA],
     });
 
-    const txAccount = await program.account.transaction.fetch(transaction.publicKey);
+    const txAccount = await program.account.transaction.fetch(
+      transaction.publicKey
+    );
 
     assert.ok(txAccount.programId.equals(pid));
     assert.deepStrictEqual(txAccount.accounts, accounts);
