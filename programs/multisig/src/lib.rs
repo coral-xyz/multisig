@@ -37,7 +37,7 @@ pub mod serum_multisig {
     ) -> Result<()> {
         assert_unique_owners(&owners)?;
         require!(threshold > 0, InvalidThreshold);
-        require!(owners.len() > 0, InvalidOwnersLen);
+        require!(!owners.is_empty(), InvalidOwnersLen);
 
         let multisig = &mut ctx.accounts.multisig;
         multisig.owners = owners;
@@ -111,7 +111,7 @@ pub mod serum_multisig {
     // is via a recursive call from execute_transaction -> set_owners.
     pub fn set_owners(ctx: Context<Auth>, owners: Vec<Pubkey>) -> Result<()> {
         assert_unique_owners(&owners)?;
-        require!(owners.len() > 0, InvalidOwnersLen);
+        require!(!owners.is_empty(), InvalidOwnersLen);
 
         let multisig = &mut ctx.accounts.multisig;
 
@@ -189,7 +189,6 @@ pub mod serum_multisig {
 pub struct CreateMultisig<'info> {
     #[account(zero, signer)]
     multisig: Box<Account<'info, Multisig>>,
-    rent: Sysvar<'info, Rent>,
 }
 
 #[derive(Accounts)]
@@ -199,7 +198,6 @@ pub struct CreateTransaction<'info> {
     transaction: Box<Account<'info, Transaction>>,
     // One of the owners. Checked in the handler.
     proposer: Signer<'info>,
-    rent: Sysvar<'info, Rent>,
 }
 
 #[derive(Accounts)]
@@ -266,7 +264,7 @@ impl From<&Transaction> for Instruction {
     fn from(tx: &Transaction) -> Instruction {
         Instruction {
             program_id: tx.program_id,
-            accounts: tx.accounts.iter().map(AccountMeta::from).collect(),
+            accounts: tx.accounts.iter().map(Into::into).collect(),
             data: tx.data.clone(),
         }
     }
@@ -299,10 +297,12 @@ impl From<&AccountMeta> for TransactionAccount {
 }
 
 fn assert_unique_owners(owners: &[Pubkey]) -> Result<()> {
-    let mut uniq_owners = owners.to_vec();
-    uniq_owners.sort();
-    uniq_owners.dedup();
-    require!(owners.len() == uniq_owners.len(), UniqueOwners);
+    for (i, owner) in owners.iter().enumerate() {
+        require!(
+            !owners.iter().skip(i + 1).any(|item| item == owner),
+            UniqueOwners
+        )
+    }
     Ok(())
 }
 
