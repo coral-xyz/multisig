@@ -132,4 +132,39 @@ describe("multisig", () => {
     assert.deepStrictEqual(multisigAccount.owners, newOwners);
     assert.ok(multisigAccount.ownerSetSeqno === 1);
   });
+
+  it("Assert Unique Owners", async () => {
+    const multisig = anchor.web3.Keypair.generate();
+    const [_multisigSigner, nonce] =
+      await anchor.web3.PublicKey.findProgramAddress(
+        [multisig.publicKey.toBuffer()],
+        program.programId
+      );
+    const multisigSize = 200; // Big enough.
+
+    const ownerA = anchor.web3.Keypair.generate();
+    const ownerB = anchor.web3.Keypair.generate();
+    const owners = [ownerA.publicKey, ownerB.publicKey, ownerA.publicKey];
+
+    const threshold = new anchor.BN(2);
+    try {
+      await program.rpc.createMultisig(owners, threshold, nonce, {
+        accounts: {
+          multisig: multisig.publicKey,
+          rent: anchor.web3.SYSVAR_RENT_PUBKEY,
+        },
+        instructions: [
+          await program.account.multisig.createInstruction(
+            multisig,
+            multisigSize
+          ),
+        ],
+        signers: [multisig],
+      });
+      assert.fail();
+    } catch (err) {
+      assert.equal(err.code, 308);
+      assert.equal(err.msg, "Owners must be unique");
+    }
+  });
 });

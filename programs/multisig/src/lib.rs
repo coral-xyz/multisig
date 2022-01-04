@@ -267,7 +267,7 @@ impl From<&Transaction> for Instruction {
     fn from(tx: &Transaction) -> Instruction {
         Instruction {
             program_id: tx.program_id,
-            accounts: tx.accounts.iter().map(AccountMeta::from).collect(),
+            accounts: tx.accounts.iter().map(Into::into).collect(),
             data: tx.data.clone(),
         }
     }
@@ -300,10 +300,12 @@ impl From<&AccountMeta> for TransactionAccount {
 }
 
 fn assert_unique_owners(owners: &[Pubkey]) -> Result<()> {
-    let mut uniq_owners = owners.to_vec();
-    uniq_owners.sort();
-    uniq_owners.dedup();
-    require!(owners.len() == uniq_owners.len(), UniqueOwners);
+    for (i, owner) in owners.iter().enumerate() {
+        require!(
+            !owners.iter().skip(i + 1).any(|item| item == owner),
+            UniqueOwners
+        )
+    }
     Ok(())
 }
 
