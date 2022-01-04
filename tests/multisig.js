@@ -26,7 +26,6 @@ describe("multisig", () => {
     await program.rpc.createMultisig(owners, threshold, nonce, {
       accounts: {
         multisig: multisig.publicKey,
-        rent: anchor.web3.SYSVAR_RENT_PUBKEY,
       },
       instructions: [
         await program.account.multisig.createInstruction(
@@ -70,7 +69,6 @@ describe("multisig", () => {
         multisig: multisig.publicKey,
         transaction: transaction.publicKey,
         proposer: ownerA.publicKey,
-        rent: anchor.web3.SYSVAR_RENT_PUBKEY,
       },
       instructions: [
         await program.account.transaction.createInstruction(
