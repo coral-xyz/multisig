@@ -36,7 +36,7 @@ pub mod serum_multisig {
         nonce: u8,
     ) -> Result<()> {
         assert_unique_owners(&owners)?;
-        require!(threshold > 0, InvalidThreshold);
+        require!(threshold > 0 && threshold <= owners.len() as u64, InvalidThreshold);
         require!(!owners.is_empty(), InvalidOwnersLen);
 
         let multisig = &mut ctx.accounts.multisig;
