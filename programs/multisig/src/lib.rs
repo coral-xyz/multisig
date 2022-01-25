@@ -37,6 +37,10 @@ pub mod mean_multisig {
 
     ) -> Result<()> {
 
+        assert_unique_owners(&owners)?;
+        require!(threshold > 0 && threshold <= owners.len() as u64, InvalidThreshold);
+        require!(!owners.is_empty(), InvalidOwnersLen);
+
         let multisig = &mut ctx.accounts.multisig;
         let clock = Clock::get()?;
 
@@ -128,6 +132,9 @@ pub mod mean_multisig {
     // is via a recursive call from execute_transaction -> set_owners.
     pub fn set_owners(ctx: Context<Auth>, owners: Vec<Pubkey>) -> Result<()> {
 
+        assert_unique_owners(&owners)?;
+        require!(!owners.is_empty(), InvalidOwnersLen);
+
         let multisig = &mut ctx.accounts.multisig;
 
         if (owners.len() as u64) < multisig.threshold {
@@ -146,6 +153,8 @@ pub mod mean_multisig {
     // invoked is via a recursive call from execute_transaction ->
     // change_threshold.
     pub fn change_threshold(ctx: Context<Auth>, threshold: u64) -> Result<()> {
+
+        require!(threshold > 0, InvalidThreshold);
 
         if threshold > ctx.accounts.multisig.owners.len() as u64 {
             return Err(ErrorCode::InvalidThreshold.into());
@@ -219,9 +228,8 @@ pub mod mean_multisig {
 
 #[derive(Accounts)]
 pub struct CreateMultisig<'info> {
-    #[account(zero)]
+    #[account(zero, signer)]
     multisig: ProgramAccount<'info, Multisig>,
-    rent: Sysvar<'info, Rent>,
 }
 
 #[derive(Accounts)]
@@ -233,7 +241,6 @@ pub struct CreateTransaction<'info> {
     // One of the owners. Checked in the handler.
     #[account(signer)]
     proposer: AccountInfo<'info>,
-    rent: Sysvar<'info, Rent>,
 }
 
 #[derive(Accounts)]
@@ -310,7 +317,7 @@ impl From<&Transaction> for Instruction {
     fn from(tx: &Transaction) -> Instruction {
         Instruction {
             program_id: tx.program_id,
-            accounts: tx.accounts.iter().map(AccountMeta::from).collect(),
+            accounts: tx.accounts.iter().map(Into::into).collect(),
             data: tx.data.clone(),
         }
     }
@@ -342,10 +349,22 @@ impl From<&AccountMeta> for TransactionAccount {
     }
 }
 
+fn assert_unique_owners(owners: &[Pubkey]) -> Result<()> {
+    for (i, owner) in owners.iter().enumerate() {
+        require!(
+            !owners.iter().skip(i + 1).any(|item| item == owner),
+            UniqueOwners
+        )
+    }
+    Ok(())
+}
+
 #[error]
 pub enum ErrorCode {
     #[msg("The given owner is not part of this multisig.")]
     InvalidOwner,
+    #[msg("Owners length must be non zero.")]
+    InvalidOwnersLen,
     #[msg("Not enough owners signed this transaction.")]
     NotEnoughSigners,
     #[msg("Cannot delete a transaction that has been signed by an owner.")]
@@ -357,5 +376,7 @@ pub enum ErrorCode {
     #[msg("The given transaction has already been executed.")]
     AlreadyExecuted,
     #[msg("Threshold must be less than or equal to the number of owners.")]
-    InvalidThreshold
+    InvalidThreshold,
+    #[msg("Owners must be unique")]
+    UniqueOwners,
 }

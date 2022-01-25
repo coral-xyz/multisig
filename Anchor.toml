@@ -11,4 +11,4 @@ mean_multisig = "FF7U7Vj1PpBkTPau7frwLLrUHrjkxTQLsH7U5K3T3B3j"
 mean_multisig = "FF7U7Vj1PpBkTPau7frwLLrUHrjkxTQLsH7U5K3T3B3j"
 
 [scripts]
-test = "mocha -t 1000000 tests/"
+test = "npx mocha -t 1000000 tests/"
