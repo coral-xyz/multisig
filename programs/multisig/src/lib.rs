@@ -18,19 +18,20 @@
 //! signed.
 
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program;
 use anchor_lang::solana_program::instruction::Instruction;
+use std::iter::FromIterator;
 
 declare_id!("FF7U7Vj1PpBkTPau7frwLLrUHrjkxTQLsH7U5K3T3B3j");
 
 #[program]
 pub mod mean_multisig {
+
     use super::*;
 
     // Initializes a new multisig account with a set of owners and a threshold.
     pub fn create_multisig(
         ctx: Context<CreateMultisig>,
-        owners: Vec<Pubkey>,
+        owners: Vec<Owner>,
         threshold: u64,
         nonce: u8,
         label: String
@@ -44,13 +45,14 @@ pub mod mean_multisig {
         let multisig = &mut ctx.accounts.multisig;
         let clock = Clock::get()?;
 
-        multisig.owners = owners;
+        multisig.owners = Vec::from_iter(owners.iter().map(|o| o.clone().address));
         multisig.threshold = threshold;
         multisig.nonce = nonce;
         multisig.owner_set_seqno = 0;
         multisig.label = label;
         multisig.created_on = clock.unix_timestamp as u64;
         multisig.pending_txs = 0;
+        multisig.owners_names = Vec::from_iter(owners.iter().map(|o| string_to_bytes(&o.name)));
 
         Ok(())
     }
@@ -118,7 +120,7 @@ pub mod mean_multisig {
     // Set owners and threshold at once.
     pub fn set_owners_and_change_threshold<'info>(
         ctx: Context<'_, '_, '_, 'info, Auth<'info>>,
-        owners: Vec<Pubkey>,
+        owners: Vec<Owner>,
         threshold: u64,
     ) -> Result<()> {
         set_owners(
@@ -130,7 +132,7 @@ pub mod mean_multisig {
 
     // Sets the owners field on the multisig. The only way this can be invoked
     // is via a recursive call from execute_transaction -> set_owners.
-    pub fn set_owners(ctx: Context<Auth>, owners: Vec<Pubkey>) -> Result<()> {
+    pub fn set_owners(ctx: Context<Auth>, owners: Vec<Owner>) -> Result<()> {
 
         assert_unique_owners(&owners)?;
         require!(!owners.is_empty(), InvalidOwnersLen);
@@ -141,7 +143,8 @@ pub mod mean_multisig {
             multisig.threshold = owners.len() as u64;
         }
 
-        multisig.owners = owners;
+        multisig.owners = Vec::from_iter(owners.iter().map(|o| o.clone().address));
+        multisig.owners_names = Vec::from_iter(owners.iter().map(|o| string_to_bytes(&o.name)));
         multisig.owner_set_seqno = multisig.owner_set_seqno
             .checked_add(1)
             .ok_or(ErrorCode::Overflow)?;
@@ -229,54 +232,53 @@ pub mod mean_multisig {
 #[derive(Accounts)]
 pub struct CreateMultisig<'info> {
     #[account(zero, signer)]
-    multisig: ProgramAccount<'info, Multisig>,
+    multisig: Account<'info, Multisig>,
 }
 
 #[derive(Accounts)]
 pub struct CreateTransaction<'info> {
     #[account(mut)]
-    multisig: ProgramAccount<'info, Multisig>,
+    multisig: Account<'info, Multisig>,
     #[account(zero)]
-    transaction: ProgramAccount<'info, Transaction>,
+    transaction: Account<'info, Transaction>,
     // One of the owners. Checked in the handler.
-    #[account(signer)]
-    proposer: AccountInfo<'info>,
+    #[account()]
+    proposer: Signer<'info>,
 }
 
 #[derive(Accounts)]
 pub struct Approve<'info> {
     #[account(constraint = multisig.owner_set_seqno == transaction.owner_set_seqno)]
-    multisig: ProgramAccount<'info, Multisig>,
+    multisig: Account<'info, Multisig>,
     #[account(mut, has_one = multisig)]
-    transaction: ProgramAccount<'info, Transaction>,
+    transaction: Account<'info, Transaction>,
     // One of the multisig owners. Checked in the handler.
-    #[account(signer)]
-    owner: AccountInfo<'info>,
+    #[account()]
+    owner: Signer<'info>,
 }
 
 #[derive(Accounts)]
 pub struct Auth<'info> {
     #[account(mut)]
-    multisig: ProgramAccount<'info, Multisig>,
+    multisig: Account<'info, Multisig>,
     #[account(
-        signer,
         seeds = [multisig.to_account_info().key.as_ref()],
         bump = multisig.nonce,
     )]
-    multisig_signer: AccountInfo<'info>,
+    multisig_signer: Signer<'info>,
 }
 
 #[derive(Accounts)]
 pub struct ExecuteTransaction<'info> {
     #[account(mut, constraint = multisig.owner_set_seqno == transaction.owner_set_seqno)]
-    multisig: ProgramAccount<'info, Multisig>,
+    multisig: Account<'info, Multisig>,
     #[account(
         seeds = [multisig.to_account_info().key.as_ref()],
         bump = multisig.nonce,
     )]
-    multisig_signer: AccountInfo<'info>,
+    multisig_signer: Signer<'info>,
     #[account(mut, has_one = multisig)]
-    transaction: ProgramAccount<'info, Transaction>,
+    transaction: Account<'info, Transaction>,
 }
 
 #[account]
@@ -288,7 +290,8 @@ pub struct Multisig {
     pub label: String,
     // created blocktime
     pub created_on: u64,
-    pub pending_txs: u64
+    pub pending_txs: u64,
+    pub owners_names: Vec<[u8; 32]>,
 }
 
 #[account]
@@ -311,6 +314,12 @@ pub struct Transaction {
     executed_on: u64,
     // Operation type
     operation: u8,
+}
+
+#[derive(AnchorSerialize, AnchorDeserialize)]
+pub struct Owner {
+    pub address: Pubkey,
+    pub name: String
 }
 
 impl From<&Transaction> for Instruction {
@@ -349,14 +358,20 @@ impl From<&AccountMeta> for TransactionAccount {
     }
 }
 
-fn assert_unique_owners(owners: &[Pubkey]) -> Result<()> {
+fn assert_unique_owners(owners: &[Owner]) -> Result<()> {
     for (i, owner) in owners.iter().enumerate() {
         require!(
-            !owners.iter().skip(i + 1).any(|item| item == owner),
+            !owners.iter().skip(i + 1).any(|item| item.address == owner.address),
             UniqueOwners
         )
     }
     Ok(())
+}
+
+fn string_to_bytes<'info>(string: &String) -> [u8; 32] {
+    let mut string_data = [b' '; 32];
+    string_data[..32].copy_from_slice(&string.as_bytes());    
+    string_data
 }
 
 #[error]
@@ -379,4 +394,6 @@ pub enum ErrorCode {
     InvalidThreshold,
     #[msg("Owners must be unique")]
     UniqueOwners,
+    #[msg("Owner name must have less than 32 bytes")]
+    OwnerNameTooLong,
 }
