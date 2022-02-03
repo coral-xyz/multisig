@@ -259,7 +259,7 @@ pub struct DropTransaction<'info> {
     #[account(
         mut,
         has_one = multisig,
-        constraint = transaction.did_execute == true,
+        constraint = transaction.did_execute,
         constraint = transaction.successor == Some(*successor.key),
     )]
     transaction: ProgramAccount<'info, Transaction>,
