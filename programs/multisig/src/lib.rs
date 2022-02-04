@@ -46,13 +46,17 @@ pub mod mean_multisig {
         let multisig = &mut ctx.accounts.multisig;
 
         // Convert owners to owners data
-        multisig.owners = Vec::from_iter(owners.iter().map(|o| {
-            let owner = o.clone();
-            OwnerData {
+        let mut multisig_owners = [OwnerData::default(); 10];
+
+        for i in 0..owners.len() {
+            let owner = owners.get(i).unwrap().clone();
+            multisig_owners[i] = OwnerData {
                 address: owner.address,
                 name: string_to_array(&owner.name)
-            }
-        })).as_slice().try_into().unwrap();
+            };
+        }
+
+        multisig.owners = multisig_owners;
 
         let clock = Clock::get()?;
 
@@ -277,9 +281,10 @@ pub mod mean_multisig {
 
 #[derive(Accounts)]
 pub struct CreateMultisig<'info> {
+    #[account(mut)]
     proposer: Signer<'info>,
     #[account(init, payer = proposer, space = 8 + 640 + 1 + 1 + 32 + 4 + 8 + 8 + 8)] // 720
-    multisig: Account<'info, Multisig>,
+    multisig: Account<'info, MultisigV2>,
     system_program: Program<'info, System>
 }
 
@@ -291,7 +296,7 @@ pub struct EditMultisig<'info> {
         constraint = multisig.nonce == nonce @ ErrorCode::InvalidMultisigNonce,
         constraint = multisig.version == 2 @ ErrorCode::InvalidMultisigVersion
     )]
-    multisig: Account<'info, Multisig>,
+    multisig: Account<'info, MultisigV2>,
     #[account(
         seeds = [multisig.to_account_info().key.as_ref()],
         bump = multisig.nonce,
@@ -302,7 +307,7 @@ pub struct EditMultisig<'info> {
 #[derive(Accounts)]
 pub struct CreateTransaction<'info> {
     #[account(mut)]
-    multisig: Account<'info, Multisig>,
+    multisig: Account<'info, MultisigV2>,
     #[account(zero)]
     transaction: Account<'info, Transaction>,
     // One of the owners. Checked in the handler.
@@ -313,7 +318,7 @@ pub struct CreateTransaction<'info> {
 #[derive(Accounts)]
 pub struct Approve<'info> {
     #[account(constraint = multisig.owner_set_seqno == transaction.owner_set_seqno)]
-    multisig: Account<'info, Multisig>,
+    multisig: Account<'info, MultisigV2>,
     #[account(mut, has_one = multisig)]
     transaction: Account<'info, Transaction>,
     // One of the multisig owners. Checked in the handler.
@@ -324,7 +329,7 @@ pub struct Approve<'info> {
 #[derive(Accounts)]
 pub struct Auth<'info> {
     #[account(mut)]
-    multisig: Account<'info, Multisig>,
+    multisig: Account<'info, MultisigV2>,
     #[account(
         seeds = [multisig.to_account_info().key.as_ref()],
         bump = multisig.nonce,
@@ -335,7 +340,7 @@ pub struct Auth<'info> {
 #[derive(Accounts)]
 pub struct ExecuteTransaction<'info> {
     #[account(mut, constraint = multisig.owner_set_seqno == transaction.owner_set_seqno)]
-    multisig: Account<'info, Multisig>,
+    multisig: Account<'info, MultisigV2>,
     #[account(
         seeds = [multisig.to_account_info().key.as_ref()],
         bump = multisig.nonce,
@@ -345,8 +350,7 @@ pub struct ExecuteTransaction<'info> {
     transaction: Account<'info, Transaction>,
 }
 
-#[account]
-pub struct MultisigOld {
+pub struct Multisig {
     pub owners: Vec<Pubkey>,
     pub threshold: u64,
     pub nonce: u8,
@@ -357,7 +361,7 @@ pub struct MultisigOld {
 }
 
 #[account]
-pub struct Multisig {
+pub struct MultisigV2 {
     /// multisig account owners
     pub owners: [OwnerData; 10],
     /// multisig account version
@@ -406,8 +410,7 @@ pub struct Owner {
 }
 
 /// The owner data saved in the multisig account data
-#[account]
-#[derive(Copy)]
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy)]
 pub struct OwnerData {
     pub address: Pubkey,
     pub name: [u8; 32]
@@ -463,7 +466,7 @@ impl From<&AccountMeta> for TransactionAccount {
 fn assert_unique_owners(owners: &[Owner]) -> Result<()> {
     for (i, owner) in owners.iter().enumerate() {
         require!(
-            !owners.iter().skip(i + 1).any(|item| item.address == owner.address),
+            !owners.iter().skip(i + 1).any(|item| item.address.eq(&owner.address)),
             UniqueOwners
         )
     }
@@ -471,47 +474,35 @@ fn assert_unique_owners(owners: &[Owner]) -> Result<()> {
 }
 
 fn string_to_array<'info>(string: &String) -> [u8; 32] {
-    let mut string_data = [b' '; 32];
-    string_data[..32].copy_from_slice(&string.as_bytes());    
+    let mut string_data = [0u8; 32];
+    string_data[..string.len()].copy_from_slice(&string.as_bytes());    
     string_data
 }
 
 #[error]
 pub enum ErrorCode {
-    /// 6000: The given owner is not part of this multisig.
     #[msg("The given owner is not part of this multisig.")]
     InvalidOwner,
-    /// 6001: Owners length must be non zero.
     #[msg("Owners length must be non zero.")]
     InvalidOwnersLen,
-    /// 6002: Not enough owners signed this transaction.
     #[msg("Not enough owners signed this transaction.")]
     NotEnoughSigners,
-    /// 6003: Cannot delete a transaction that has been signed by an owner.
     #[msg("Cannot delete a transaction that has been signed by an owner.")]
     TransactionAlreadySigned,
-    /// 6004: Operation overflow.
     #[msg("Operation overflow")]
     Overflow,
-    /// 6005: Cannot delete a transaction the owner did not create.
     #[msg("Cannot delete a transaction the owner did not create.")]
     UnableToDelete,
-    /// 6006: The given transaction has already been executed.
     #[msg("The given transaction has already been executed.")]
     AlreadyExecuted,
-    /// 6007: Threshold must be less than or equal to the number of owners.
     #[msg("Threshold must be less than or equal to the number of owners.")]
     InvalidThreshold,
-    /// 6008: Owners must be unique.
     #[msg("Owners must be unique")]
     UniqueOwners,
-    /// 6009: Owner name must have less than 32 bytes.
     #[msg("Owner name must have less than 32 bytes")]
     OwnerNameTooLong,
-    /// 6010: Multisig nonce is not valid.
     #[msg("Multisig nonce is not valid")]
     InvalidMultisigNonce,
-    /// 6011: Multisig version is not valid.
     #[msg("Multisig version is not valid")]
     InvalidMultisigVersion,
 }
