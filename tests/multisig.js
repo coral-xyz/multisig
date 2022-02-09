@@ -163,7 +163,7 @@ describe("multisig", () => {
       });
       assert.fail();
     } catch (err) {
-      assert.equal(err.code, 308);
+      assert.equal(err.code, 6008);
       assert.equal(err.msg, "Owners must be unique");
     }
   });
