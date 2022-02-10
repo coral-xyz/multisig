@@ -21,6 +21,7 @@ use anchor_lang::prelude::*;
 use anchor_lang::solana_program;
 use anchor_lang::solana_program::instruction::Instruction;
 use std::convert::Into;
+use std::ops::Deref;
 
 declare_id!("6tbPiQLgTU4ySYWyZGXbnVSAEzLc1uF8t5kJPXXgBmRP");
 
@@ -166,7 +167,7 @@ pub mod serum_multisig {
         }
 
         // Execute the transaction signed by the multisig.
-        let mut ix: Instruction = (&**ctx.accounts.transaction).into();
+        let mut ix: Instruction = (*ctx.accounts.transaction).deref().into();
         ix.accounts = ix
             .accounts
             .iter()
