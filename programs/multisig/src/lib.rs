@@ -104,7 +104,12 @@ pub mod serum_multisig {
         threshold: u64,
     ) -> Result<()> {
         set_owners(
-            Context::new(ctx.program_id, ctx.accounts, ctx.remaining_accounts),
+            Context::new(
+                ctx.program_id,
+                ctx.accounts,
+                ctx.remaining_accounts,
+                ctx.bumps.clone(),
+            ),
             owners,
         )?;
         change_threshold(ctx, threshold)
