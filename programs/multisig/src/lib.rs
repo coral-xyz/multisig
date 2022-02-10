@@ -76,7 +76,7 @@ pub mod serum_multisig {
         tx.accounts = accs;
         tx.data = data;
         tx.signers = signers;
-        tx.multisig = *ctx.accounts.multisig.to_account_info().key;
+        tx.multisig = ctx.accounts.multisig.key();
         tx.did_execute = false;
         tx.owner_set_seqno = ctx.accounts.multisig.owner_set_seqno;
 
@@ -179,10 +179,8 @@ pub mod serum_multisig {
                 acc
             })
             .collect();
-        let seeds = &[
-            ctx.accounts.multisig.to_account_info().key.as_ref(),
-            &[ctx.accounts.multisig.nonce],
-        ];
+        let multisig_key = ctx.accounts.multisig.key();
+        let seeds = &[multisig_key.as_ref(), &[ctx.accounts.multisig.nonce]];
         let signer = &[&seeds[..]];
         let accounts = ctx.remaining_accounts;
         solana_program::program::invoke_signed(&ix, accounts, signer)?;
@@ -224,7 +222,7 @@ pub struct Auth<'info> {
     #[account(mut)]
     multisig: Box<Account<'info, Multisig>>,
     #[account(
-        seeds = [multisig.to_account_info().key.as_ref()],
+        seeds = [multisig.key().as_ref()],
         bump = multisig.nonce,
     )]
     multisig_signer: Signer<'info>,
@@ -235,7 +233,7 @@ pub struct ExecuteTransaction<'info> {
     #[account(constraint = multisig.owner_set_seqno == transaction.owner_set_seqno)]
     multisig: Box<Account<'info, Multisig>>,
     #[account(
-        seeds = [multisig.to_account_info().key.as_ref()],
+        seeds = [multisig.key().as_ref()],
         bump = multisig.nonce,
     )]
     multisig_signer: UncheckedAccount<'info>,
