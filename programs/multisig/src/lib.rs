@@ -256,14 +256,14 @@ pub struct ExecuteTransaction<'info> {
 
 #[derive(Accounts)]
 pub struct DropTransaction<'info> {
-    multisig: Account<'info, Multisig>,
+    multisig: Box<Account<'info, Multisig>>,
     #[account(
         mut,
         has_one = multisig,
         constraint = transaction.did_execute,
         constraint = transaction.successor == Some(*successor.key),
     )]
-    transaction: Account<'info, Transaction>,
+    transaction: Box<Account<'info, Transaction>>,
     #[account(mut)]
     successor: AccountInfo<'info>,
 }
