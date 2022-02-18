@@ -110,6 +110,7 @@ pub mod mean_multisig {
         ctx: Context<CreateTransaction>,
         pid: Pubkey,
         operation: u8,
+        keypairs: Vec<[u8; 64]>,
         accs: Vec<TransactionAccount>,
         data: Vec<u8>
 
@@ -120,7 +121,7 @@ pub mod mean_multisig {
             .multisig
             .owners
             .iter()
-            .position(|a| a.address.eq(&ctx.accounts.proposer.key))
+            .position(|a| a.address.eq(&ctx.accounts.proposer.key()))
             .ok_or(ErrorCode::InvalidOwner)?;
 
         let mut signers = Vec::new();
@@ -134,11 +135,13 @@ pub mod mean_multisig {
         tx.accounts = accs;
         tx.data = data;
         tx.signers = signers;
-        tx.multisig = *ctx.accounts.multisig.to_account_info().key;
+        tx.multisig = ctx.accounts.multisig.key();
         tx.executed_on = 0;
         tx.owner_set_seqno = ctx.accounts.multisig.owner_set_seqno;
         tx.created_on = clock.unix_timestamp as u64;
         tx.operation = operation;
+        tx.keypairs = keypairs; // accounts secrets needed when executing a Tx that creates new accounts
+        tx.proposer = ctx.accounts.proposer.key();
 
         let multisig = &mut ctx.accounts.multisig; 
         multisig.pending_txs = multisig.pending_txs
@@ -332,11 +335,15 @@ pub struct Transaction {
     /// Owner set sequence number.
     pub owner_set_seqno: u32,
     /// Created blocktime 
-    created_on: u64,
+    pub created_on: u64,
     /// Executed blocktime
-    executed_on: u64,
+    pub executed_on: u64,
     /// Operation number
-    operation: u8,
+    pub operation: u8,
+    /// Signatures required for the transaction
+    pub keypairs: Vec<[u8; 64]>,
+    /// The proposer of the transaction
+    pub proposer: Pubkey
 }
 
 /// Owner parameter passed on create and edit multisig
@@ -353,6 +360,13 @@ pub struct OwnerData {
     pub name: [u8; 32]
 }
 
+// Signature required by the transaction
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy)]
+pub struct Keypair {
+    pub public_key: Pubkey,
+    pub secret_key: [u8; 64]
+}
+
 /// To support fixed size arrays we need to implement
 /// the Default trait for owner data
 impl Default for OwnerData {
@@ -360,6 +374,17 @@ impl Default for OwnerData {
         Self {
             address: Pubkey::default(),
             name: [0u8; 32]
+        }
+    }
+}
+
+/// To support fixed size arrays we need to implement
+/// the Default trait for owner data
+impl Default for Keypair {
+    fn default() -> Self {
+        Self {
+            public_key: Pubkey::default(),
+            secret_key: [0u8; 64]
         }
     }
 }
