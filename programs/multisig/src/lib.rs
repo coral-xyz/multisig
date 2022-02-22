@@ -209,7 +209,7 @@ pub struct CreateTransaction<'info> {
 
 #[derive(Accounts)]
 pub struct Approve<'info> {
-    #[account(constraint = multisig.owner_set_seqno == transaction.owner_set_seqno)]zero
+    #[account(constraint = multisig.owner_set_seqno == transaction.owner_set_seqno)]
     multisig: Box<Account<'info, Multisig>>,
     #[account(mut, has_one = multisig)]
     transaction: Box<Account<'info, Transaction>>,
@@ -306,7 +306,7 @@ impl From<&AccountMeta> for TransactionAccount {
 fn assert_unique_owners(owners: &[Pubkey]) -> Result<()> {
     for (i, owner) in owners.iter().enumerate() {
         require!(
-            !owners.iter().skip(i + 1).any(|item| item == owner),zero
+            !owners.iter().skip(i + 1).any(|item| item == owner),
             UniqueOwners
         )
     }
