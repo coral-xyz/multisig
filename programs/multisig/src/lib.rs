@@ -19,6 +19,7 @@
 
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::instruction::Instruction;
+use std::ops::Deref;
 
 declare_id!("FF7U7Vj1PpBkTPau7frwLLrUHrjkxTQLsH7U5K3T3B3j");
 
@@ -189,7 +190,7 @@ pub mod mean_multisig {
         }
 
         // Execute the transaction signed by the multisig.
-        let mut ix: Instruction = (&*ctx.accounts.transaction).into();
+        let mut ix: Instruction = (*ctx.accounts.transaction).deref().into();
         ix.accounts = ix
             .accounts
             .iter()
@@ -233,7 +234,7 @@ pub struct CreateMultisig<'info> {
         payer = proposer, 
         space = 8 + 640 + 1 + 1 + 32 + 4 + 8 + 8 + 8, // 710
     )]
-    multisig: Account<'info, MultisigV2>,
+    multisig: Box<Account<'info, MultisigV2>>,
     system_program: Program<'info, System>
 }
 
@@ -251,7 +252,7 @@ pub struct CreateTransaction<'info> {
 #[derive(Accounts)]
 pub struct EditMultisig<'info> {
     #[account(mut)]
-    multisig: Account<'info, MultisigV2>,
+    multisig: Box<Account<'info, MultisigV2>>,
     #[account(
         seeds = [multisig.to_account_info().key.as_ref()],
         bump = multisig.nonce,
@@ -265,9 +266,9 @@ pub struct Approve<'info> {
         mut, 
         constraint = multisig.owner_set_seqno == transaction.owner_set_seqno @ ErrorCode::InvalidOwnerSetSeqNumber
     )]
-    multisig: Account<'info, MultisigV2>,
+    multisig: Box<Account<'info, MultisigV2>>,
     #[account(mut, has_one = multisig)]
-    transaction: Account<'info, Transaction>,
+    transaction: Box<Account<'info, Transaction>>,
     // One of the multisig owners. Checked in the handler.
     #[account(mut)]
     owner: Signer<'info>,
@@ -279,14 +280,14 @@ pub struct ExecuteTransaction<'info> {
         mut,
         constraint = multisig.owner_set_seqno == transaction.owner_set_seqno @ ErrorCode::InvalidOwnerSetSeqNumber
     )]
-    multisig: Account<'info, MultisigV2>,
+    multisig: Box<Account<'info, MultisigV2>>,
     #[account(
         seeds = [multisig.to_account_info().key.as_ref()],
         bump = multisig.nonce,
     )]
-    multisig_signer: AccountInfo<'info>,
+    multisig_signer: UncheckedAccount<'info>,
     #[account(mut, has_one = multisig)]
-    transaction: Account<'info, Transaction>,
+    transaction: Box<Account<'info, Transaction>>,
 }
 
 #[account]

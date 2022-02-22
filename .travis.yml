@@ -6,7 +6,7 @@ env:
   global:
     - NODE_VERSION="v14.7.0"
     - SOLANA_VERSION="v1.8.0"
-    - ANCHOR_VERSION="v0.18.2"
+    - ANCHOR_VERSION="v0.19.0"
 
 cache:
   directories:
