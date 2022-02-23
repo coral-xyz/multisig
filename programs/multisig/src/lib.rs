@@ -236,6 +236,7 @@ pub struct ExecuteTransaction<'info> {
         seeds = [multisig.key().as_ref()],
         bump = multisig.nonce,
     )]
+    /// CHECK: is_signer will be enabled when it actually gets executed
     multisig_signer: UncheckedAccount<'info>,
     #[account(mut, has_one = multisig)]
     transaction: Box<Account<'info, Transaction>>,
@@ -313,7 +314,7 @@ fn assert_unique_owners(owners: &[Pubkey]) -> Result<()> {
     Ok(())
 }
 
-#[error]
+#[error_code]
 pub enum ErrorCode {
     #[msg("The given owner is not part of this multisig.")]
     InvalidOwner,
