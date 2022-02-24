@@ -232,6 +232,7 @@ pub struct Auth<'info> {
 pub struct ExecuteTransaction<'info> {
     #[account(constraint = multisig.owner_set_seqno == transaction.owner_set_seqno)]
     multisig: Box<Account<'info, Multisig>>,
+    /// CHECK: multisig_signer is a PDA program signer. Data is never read or written to. 
     #[account(
         seeds = [multisig.key().as_ref()],
         bump = multisig.nonce,
@@ -313,7 +314,7 @@ fn assert_unique_owners(owners: &[Pubkey]) -> Result<()> {
     Ok(())
 }
 
-#[error]
+#[error_code]
 pub enum ErrorCode {
     #[msg("The given owner is not part of this multisig.")]
     InvalidOwner,
