@@ -232,11 +232,11 @@ pub struct Auth<'info> {
 pub struct ExecuteTransaction<'info> {
     #[account(constraint = multisig.owner_set_seqno == transaction.owner_set_seqno)]
     multisig: Box<Account<'info, Multisig>>,
+    /// CHECK: multisig_signer is a PDA program signer. Data is never read or written to. 
     #[account(
         seeds = [multisig.key().as_ref()],
         bump = multisig.nonce,
     )]
-    /// CHECK: is_signer will be enabled when it actually gets executed
     multisig_signer: UncheckedAccount<'info>,
     #[account(mut, has_one = multisig)]
     transaction: Box<Account<'info, Transaction>>,
