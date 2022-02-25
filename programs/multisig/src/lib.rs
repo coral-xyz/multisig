@@ -314,12 +314,12 @@ pub struct CreateMultisig<'info> {
 #[derive(Accounts)]
 pub struct CreateTransaction<'info> {
     #[account(mut)]
-    multisig: Account<'info, MultisigV2>,
-    #[account(zero)]
-    transaction: Account<'info, Transaction>,
+    multisig: Box<Account<'info, MultisigV2>>,
+    #[account(zero, signer)]
+    transaction: Box<Account<'info, Transaction>>,
     // One of the owners. Checked in the handler.
     #[account(mut)]
-    proposer: Signer<'info>,
+    proposer: Signer<'info>
 }
 
 #[derive(Accounts)]
@@ -327,7 +327,7 @@ pub struct EditMultisig<'info> {
     #[account(mut)]
     multisig: Box<Account<'info, MultisigV2>>,
     #[account(
-        seeds = [multisig.to_account_info().key.as_ref()],
+        seeds = [multisig.key().as_ref()],
         bump = multisig.nonce,
     )]
     multisig_signer: Signer<'info>,
@@ -355,7 +355,7 @@ pub struct ExecuteTransaction<'info> {
     )]
     multisig: Box<Account<'info, MultisigV2>>,
     #[account(
-        seeds = [multisig.to_account_info().key.as_ref()],
+        seeds = [multisig.key().as_ref()],
         bump = multisig.nonce,
     )]
     multisig_signer: UncheckedAccount<'info>,
@@ -375,13 +375,13 @@ pub struct ExecuteTransactionPda<'info> {
     )]
     multisig: Box<Account<'info, MultisigV2>>,
     #[account(
-        seeds = [multisig.to_account_info().key.as_ref()],
+        seeds = [multisig.key().as_ref()],
         bump = multisig.nonce,
     )]
     multisig_signer: UncheckedAccount<'info>,
     #[account(
         mut,
-        seeds = [multisig.to_account_info().key.as_ref(), &pda_timestamp.to_le_bytes()],
+        seeds = [multisig.key().as_ref(), &pda_timestamp.to_le_bytes()],
         bump = pda_bump,
     )]
     pda_account: UncheckedAccount<'info>,
