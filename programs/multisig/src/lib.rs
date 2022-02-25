@@ -111,9 +111,10 @@ pub mod mean_multisig {
         ctx: Context<CreateTransaction>,
         pid: Pubkey,
         operation: u8,
-        keypairs: Vec<[u8; 64]>,
         accs: Vec<TransactionAccount>,
-        data: Vec<u8>
+        data: Vec<u8>,
+        pda_timestamp: u64,
+        pda_bump: u8
 
     ) -> Result<()> {
 
@@ -141,8 +142,11 @@ pub mod mean_multisig {
         tx.owner_set_seqno = ctx.accounts.multisig.owner_set_seqno;
         tx.created_on = clock.unix_timestamp as u64;
         tx.operation = operation;
-        tx.keypairs = keypairs; // accounts secrets needed when executing a Tx that creates new accounts
+        // tx.keypairs = keypairs; // deprecated
         tx.proposer = ctx.accounts.proposer.key();
+        // These to fields are optional since all Txs doesn't need to create a PDA account
+        tx.pda_timestamp = pda_timestamp;
+        tx.pda_bump = pda_bump;
 
         let multisig = &mut ctx.accounts.multisig; 
         multisig.pending_txs = multisig.pending_txs
@@ -223,6 +227,75 @@ pub mod mean_multisig {
 
         Ok(())
     }
+
+    /// Executes the given transaction if threshold owners have signed it.
+    pub fn execute_transaction_pda(
+        ctx: Context<ExecuteTransactionPda>,
+        pda_timestamp: u64,
+        pda_bump: u8
+
+    ) -> Result<()> {
+
+        // Has this been executed already?
+        if ctx.accounts.transaction.executed_on > 0 {
+            return Err(ErrorCode::AlreadyExecuted.into());
+        }
+
+        // Do we have enough signers.
+        let sig_count = ctx
+            .accounts
+            .transaction
+            .signers
+            .iter()
+            .filter(|&did_sign| *did_sign)
+            .count() as u64;
+
+        if sig_count < ctx.accounts.multisig.threshold {
+            return Err(ErrorCode::NotEnoughSigners.into());
+        }
+
+        // Execute the transaction signed by the multisig.
+        let mut ix: Instruction = (*ctx.accounts.transaction).deref().into();
+        ix.accounts = ix
+            .accounts
+            .iter()
+            .map(|acc| {
+                let mut acc = acc.clone();
+                if &acc.pubkey == ctx.accounts.multisig_signer.to_account_info().key ||
+                   &acc.pubkey == ctx.accounts.pda_account.to_account_info().key 
+                {
+                    acc.is_signer = true;
+                }
+                acc
+            })
+            .collect();
+
+        let transaction_seeds = &[
+            ctx.accounts.multisig.to_account_info().key.as_ref(),            
+            &[ctx.accounts.multisig.nonce],
+        ];
+
+        let pda_seeds = &[
+            ctx.accounts.multisig.to_account_info().key.as_ref(),
+            &pda_timestamp.to_le_bytes(),
+            &[pda_bump],
+        ];
+
+        let signers = &[&transaction_seeds[..], &pda_seeds[..]];
+        let accounts = ctx.remaining_accounts;
+        let _ = solana_program::program::invoke_signed(&ix, accounts, signers)?;
+        let _ = ctx.accounts.multisig.reload()?;
+        // Burn the transaction to ensure one time use.
+        ctx.accounts.transaction.executed_on = Clock::get()?.unix_timestamp as u64;
+
+        if ctx.accounts.multisig.pending_txs > 0 {
+            ctx.accounts.multisig.pending_txs = ctx.accounts.multisig.pending_txs
+                .checked_sub(1)
+                .ok_or(ErrorCode::Overflow)?;
+        }
+
+        Ok(())
+    }
 }
 
 #[derive(Accounts)]
@@ -290,6 +363,32 @@ pub struct ExecuteTransaction<'info> {
     transaction: Box<Account<'info, Transaction>>,
 }
 
+#[derive(Accounts)]
+#[instruction(
+    pda_timestamp: u64,
+    pda_bump: u8
+)]
+pub struct ExecuteTransactionPda<'info> {
+    #[account(
+        mut,
+        constraint = multisig.owner_set_seqno == transaction.owner_set_seqno @ ErrorCode::InvalidOwnerSetSeqNumber
+    )]
+    multisig: Box<Account<'info, MultisigV2>>,
+    #[account(
+        seeds = [multisig.to_account_info().key.as_ref()],
+        bump = multisig.nonce,
+    )]
+    multisig_signer: UncheckedAccount<'info>,
+    #[account(
+        mut,
+        seeds = [multisig.to_account_info().key.as_ref(), &pda_timestamp.to_le_bytes()],
+        bump = pda_bump,
+    )]
+    pda_account: UncheckedAccount<'info>,
+    #[account(mut, has_one = multisig)]
+    transaction: Box<Account<'info, Transaction>>,
+}
+
 #[account]
 pub struct Multisig {
     pub owners: Vec<Pubkey>,
@@ -344,7 +443,11 @@ pub struct Transaction {
     /// Signatures required for the transaction
     pub keypairs: Vec<[u8; 64]>,
     /// The proposer of the transaction
-    pub proposer: Pubkey
+    pub proposer: Pubkey,
+    /// The timestamp used as part of the seed of the PDA account
+    pub pda_timestamp: u64,
+    /// The bump used to derive the PDA account
+    pub pda_bump: u8
 }
 
 /// Owner parameter passed on create and edit multisig
