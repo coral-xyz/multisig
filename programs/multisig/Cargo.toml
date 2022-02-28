@@ -1,13 +1,13 @@
 [package]
-name = "serum-multisig"
-version = "0.9.0"
+name = "mean-multisig"
+version = "0.10.0"
 description = "Created with Anchor"
 edition = "2018"
 license = "Apache-2.0"
 
 [lib]
 crate-type = ["cdylib", "lib"]
-name = "serum_multisig"
+name = "mean_multisig"
 
 [features]
 no-entrypoint = []
@@ -16,4 +16,5 @@ cpi = ["no-entrypoint"]
 default = []
 
 [dependencies]
-anchor-lang = "0.21.0"
+anchor-lang = "^0.21.0"
+solana-program = "^1.8.5"

@@ -642,6 +642,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "mean-multisig"
+version = "0.10.0"
+dependencies = [
+ "anchor-lang",
+ "solana-program",
+]
+
+[[package]]
 name = "memchr"
 version = "2.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -867,13 +875,6 @@ dependencies = [
  "itoa",
  "ryu",
  "serde",
-]
-
-[[package]]
-name = "serum-multisig"
-version = "0.9.0"
-dependencies = [
- "anchor-lang",
 ]
 
 [[package]]

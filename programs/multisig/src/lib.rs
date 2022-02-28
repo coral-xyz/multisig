@@ -18,53 +18,112 @@
 //! signed.
 
 use anchor_lang::prelude::*;
-use anchor_lang::solana_program;
 use anchor_lang::solana_program::instruction::Instruction;
-use std::convert::Into;
 use std::ops::Deref;
 
-declare_id!("6tbPiQLgTU4ySYWyZGXbnVSAEzLc1uF8t5kJPXXgBmRP");
+declare_id!("FF7U7Vj1PpBkTPau7frwLLrUHrjkxTQLsH7U5K3T3B3j");
+
+pub const MULTISIG_FEE: u64 = 10000;
 
 #[program]
-pub mod serum_multisig {
+pub mod mean_multisig {
+
     use super::*;
 
-    // Initializes a new multisig account with a set of owners and a threshold.
+    /// Initializes a new multisig account with a set of owners and a threshold.
     pub fn create_multisig(
         ctx: Context<CreateMultisig>,
-        owners: Vec<Pubkey>,
+        owners: Vec<Owner>,
         threshold: u64,
         nonce: u8,
+        label: String
+
     ) -> Result<()> {
+
         assert_unique_owners(&owners)?;
-        require!(
-            threshold > 0 && threshold <= owners.len() as u64,
-            InvalidThreshold
-        );
-        require!(!owners.is_empty(), InvalidOwnersLen);
+        require!(threshold > 0 && threshold <= owners.len() as u64, InvalidThreshold);
+        require!(owners.len() > 0 && owners.len() <= 10, InvalidOwnersLen);
 
         let multisig = &mut ctx.accounts.multisig;
-        multisig.owners = owners;
-        multisig.threshold = threshold;
+
+        // Convert owners to owners data
+        let mut multisig_owners = [OwnerData::default(); 10];
+
+        for i in 0..owners.len() {
+            let owner = owners.get(i).unwrap().clone();
+            multisig_owners[i] = OwnerData {
+                address: owner.address,
+                name: string_to_array(&owner.name)
+            };
+        }
+
+        multisig.owners = multisig_owners;
+
+        let clock = Clock::get()?;
+
+        multisig.version = 2;
         multisig.nonce = nonce;
+        multisig.threshold = threshold;
         multisig.owner_set_seqno = 0;
+        multisig.label = string_to_array(&label);
+        multisig.created_on = clock.unix_timestamp as u64;
+        multisig.pending_txs = 0;
+
         Ok(())
     }
 
-    // Creates a new transaction account, automatically signed by the creator,
-    // which must be one of the owners of the multisig.
+    /// Modify a multisig account data
+    pub fn edit_multisig<'info>(
+        ctx: Context<EditMultisig>,
+        owners: Vec<Owner>,
+        threshold: u64,
+        label: String
+
+    ) -> Result<()> {
+
+        assert_unique_owners(&owners)?;
+        require!(threshold > 0 && threshold <= owners.len() as u64, InvalidThreshold);
+        require!(owners.len() > 0 && owners.len() <= 10, InvalidOwnersLen);
+
+        let multisig = &mut ctx.accounts.multisig;
+        let mut multisig_owners = [OwnerData::default(); 10];
+
+        multisig.threshold = threshold;
+        multisig.label = string_to_array(&label);
+
+        for i in 0..owners.len() {
+            let owner = owners.get(i).unwrap();
+            multisig_owners[i] = OwnerData {
+                address: owner.address,
+                name: string_to_array(&owner.name)
+            };
+        }
+
+        multisig.owners = multisig_owners;
+        multisig.owner_set_seqno += 1;
+
+        Ok(())
+    }
+
+    /// Creates a new transaction account, automatically signed by the creator,
+    /// which must be one of the owners of the multisig.
     pub fn create_transaction(
         ctx: Context<CreateTransaction>,
         pid: Pubkey,
+        operation: u8,
         accs: Vec<TransactionAccount>,
         data: Vec<u8>,
+        pda_timestamp: u64,
+        pda_bump: u8
+
     ) -> Result<()> {
+
         let owner_index = ctx
             .accounts
             .multisig
             .owners
             .iter()
-            .position(|a| a == ctx.accounts.proposer.key)
+            .position(|a| a.address.eq(&ctx.accounts.proposer.key()))
             .ok_or(ErrorCode::InvalidOwner)?;
 
         let mut signers = Vec::new();
@@ -72,25 +131,40 @@ pub mod serum_multisig {
         signers[owner_index] = true;
 
         let tx = &mut ctx.accounts.transaction;
+        let clock = Clock::get()?;
+
         tx.program_id = pid;
         tx.accounts = accs;
         tx.data = data;
         tx.signers = signers;
         tx.multisig = ctx.accounts.multisig.key();
-        tx.did_execute = false;
+        tx.executed_on = 0;
         tx.owner_set_seqno = ctx.accounts.multisig.owner_set_seqno;
+        tx.created_on = clock.unix_timestamp as u64;
+        tx.operation = operation;
+        // tx.keypairs = keypairs; // deprecated
+        tx.proposer = ctx.accounts.proposer.key();
+        // These to fields are optional since all Txs doesn't need to create a PDA account
+        tx.pda_timestamp = pda_timestamp;
+        tx.pda_bump = pda_bump;
+
+        let multisig = &mut ctx.accounts.multisig; 
+        multisig.pending_txs = multisig.pending_txs
+            .checked_add(1)
+            .ok_or(ErrorCode::Overflow)?;
 
         Ok(())
     }
 
-    // Approves a transaction on behalf of an owner of the multisig.
+    /// Approves a transaction on behalf of an owner of the multisig.
     pub fn approve(ctx: Context<Approve>) -> Result<()> {
+
         let owner_index = ctx
             .accounts
             .multisig
             .owners
             .iter()
-            .position(|a| a == ctx.accounts.owner.key)
+            .position(|a| a.address.eq(&ctx.accounts.owner.key))
             .ok_or(ErrorCode::InvalidOwner)?;
 
         ctx.accounts.transaction.signers[owner_index] = true;
@@ -98,59 +172,11 @@ pub mod serum_multisig {
         Ok(())
     }
 
-    // Set owners and threshold at once.
-    pub fn set_owners_and_change_threshold<'info>(
-        ctx: Context<'_, '_, '_, 'info, Auth<'info>>,
-        owners: Vec<Pubkey>,
-        threshold: u64,
-    ) -> Result<()> {
-        set_owners(
-            Context::new(
-                ctx.program_id,
-                ctx.accounts,
-                ctx.remaining_accounts,
-                ctx.bumps.clone(),
-            ),
-            owners,
-        )?;
-        change_threshold(ctx, threshold)
-    }
-
-    // Sets the owners field on the multisig. The only way this can be invoked
-    // is via a recursive call from execute_transaction -> set_owners.
-    pub fn set_owners(ctx: Context<Auth>, owners: Vec<Pubkey>) -> Result<()> {
-        assert_unique_owners(&owners)?;
-        require!(!owners.is_empty(), InvalidOwnersLen);
-
-        let multisig = &mut ctx.accounts.multisig;
-
-        if (owners.len() as u64) < multisig.threshold {
-            multisig.threshold = owners.len() as u64;
-        }
-
-        multisig.owners = owners;
-        multisig.owner_set_seqno += 1;
-
-        Ok(())
-    }
-
-    // Changes the execution threshold of the multisig. The only way this can be
-    // invoked is via a recursive call from execute_transaction ->
-    // change_threshold.
-    pub fn change_threshold(ctx: Context<Auth>, threshold: u64) -> Result<()> {
-        require!(threshold > 0, InvalidThreshold);
-        if threshold > ctx.accounts.multisig.owners.len() as u64 {
-            return Err(ErrorCode::InvalidThreshold.into());
-        }
-        let multisig = &mut ctx.accounts.multisig;
-        multisig.threshold = threshold;
-        Ok(())
-    }
-
-    // Executes the given transaction if threshold owners have signed it.
+    /// Executes the given transaction if threshold owners have signed it.
     pub fn execute_transaction(ctx: Context<ExecuteTransaction>) -> Result<()> {
+
         // Has this been executed already?
-        if ctx.accounts.transaction.did_execute {
+        if ctx.accounts.transaction.executed_on > 0 {
             return Err(ErrorCode::AlreadyExecuted.into());
         }
 
@@ -162,6 +188,7 @@ pub mod serum_multisig {
             .iter()
             .filter(|&did_sign| *did_sign)
             .count() as u64;
+
         if sig_count < ctx.accounts.multisig.threshold {
             return Err(ErrorCode::NotEnoughSigners.into());
         }
@@ -173,20 +200,99 @@ pub mod serum_multisig {
             .iter()
             .map(|acc| {
                 let mut acc = acc.clone();
-                if &acc.pubkey == ctx.accounts.multisig_signer.key {
+                if &acc.pubkey == ctx.accounts.multisig_signer.to_account_info().key {
                     acc.is_signer = true;
                 }
                 acc
             })
             .collect();
-        let multisig_key = ctx.accounts.multisig.key();
-        let seeds = &[multisig_key.as_ref(), &[ctx.accounts.multisig.nonce]];
+
+        let seeds = &[
+            ctx.accounts.multisig.to_account_info().key.as_ref(),
+            &[ctx.accounts.multisig.nonce],
+        ];
+
         let signer = &[&seeds[..]];
         let accounts = ctx.remaining_accounts;
-        solana_program::program::invoke_signed(&ix, accounts, signer)?;
-
+        let _ = solana_program::program::invoke_signed(&ix, accounts, signer)?;
+        let _ = ctx.accounts.multisig.reload()?;
         // Burn the transaction to ensure one time use.
-        ctx.accounts.transaction.did_execute = true;
+        ctx.accounts.transaction.executed_on = Clock::get()?.unix_timestamp as u64;
+
+        if ctx.accounts.multisig.pending_txs > 0 {
+            ctx.accounts.multisig.pending_txs = ctx.accounts.multisig.pending_txs
+                .checked_sub(1)
+                .ok_or(ErrorCode::Overflow)?;
+        }
+
+        Ok(())
+    }
+
+    /// Executes the given transaction if threshold owners have signed it.
+    pub fn execute_transaction_pda(
+        ctx: Context<ExecuteTransactionPda>,
+        pda_timestamp: u64,
+        pda_bump: u8
+
+    ) -> Result<()> {
+
+        // Has this been executed already?
+        if ctx.accounts.transaction.executed_on > 0 {
+            return Err(ErrorCode::AlreadyExecuted.into());
+        }
+
+        // Do we have enough signers.
+        let sig_count = ctx
+            .accounts
+            .transaction
+            .signers
+            .iter()
+            .filter(|&did_sign| *did_sign)
+            .count() as u64;
+
+        if sig_count < ctx.accounts.multisig.threshold {
+            return Err(ErrorCode::NotEnoughSigners.into());
+        }
+
+        // Execute the transaction signed by the multisig.
+        let mut ix: Instruction = (*ctx.accounts.transaction).deref().into();
+        ix.accounts = ix
+            .accounts
+            .iter()
+            .map(|acc| {
+                let mut acc = acc.clone();
+                if &acc.pubkey == ctx.accounts.multisig_signer.to_account_info().key ||
+                   &acc.pubkey == ctx.accounts.pda_account.to_account_info().key 
+                {
+                    acc.is_signer = true;
+                }
+                acc
+            })
+            .collect();
+
+        let transaction_seeds = &[
+            ctx.accounts.multisig.to_account_info().key.as_ref(),            
+            &[ctx.accounts.multisig.nonce],
+        ];
+
+        let pda_seeds = &[
+            ctx.accounts.multisig.to_account_info().key.as_ref(),
+            &pda_timestamp.to_le_bytes(),
+            &[pda_bump],
+        ];
+
+        let signers = &[&transaction_seeds[..], &pda_seeds[..]];
+        let accounts = ctx.remaining_accounts;
+        let _ = solana_program::program::invoke_signed(&ix, accounts, signers)?;
+        let _ = ctx.accounts.multisig.reload()?;
+        // Burn the transaction to ensure one time use.
+        ctx.accounts.transaction.executed_on = Clock::get()?.unix_timestamp as u64;
+
+        if ctx.accounts.multisig.pending_txs > 0 {
+            ctx.accounts.multisig.pending_txs = ctx.accounts.multisig.pending_txs
+                .checked_sub(1)
+                .ok_or(ErrorCode::Overflow)?;
+        }
 
         Ok(())
     }
@@ -194,33 +300,32 @@ pub mod serum_multisig {
 
 #[derive(Accounts)]
 pub struct CreateMultisig<'info> {
-    #[account(zero, signer)]
-    multisig: Box<Account<'info, Multisig>>,
+    #[account(mut)]
+    proposer: Signer<'info>,
+    #[account(
+        init,
+        payer = proposer, 
+        space = 8 + 640 + 1 + 1 + 32 + 4 + 8 + 8 + 8, // 710
+    )]
+    multisig: Box<Account<'info, MultisigV2>>,
+    system_program: Program<'info, System>
 }
 
 #[derive(Accounts)]
 pub struct CreateTransaction<'info> {
-    multisig: Box<Account<'info, Multisig>>,
+    #[account(mut)]
+    multisig: Box<Account<'info, MultisigV2>>,
     #[account(zero, signer)]
     transaction: Box<Account<'info, Transaction>>,
     // One of the owners. Checked in the handler.
-    proposer: Signer<'info>,
-}
-
-#[derive(Accounts)]
-pub struct Approve<'info> {
-    #[account(constraint = multisig.owner_set_seqno == transaction.owner_set_seqno)]
-    multisig: Box<Account<'info, Multisig>>,
-    #[account(mut, has_one = multisig)]
-    transaction: Box<Account<'info, Transaction>>,
-    // One of the multisig owners. Checked in the handler.
-    owner: Signer<'info>,
-}
-
-#[derive(Accounts)]
-pub struct Auth<'info> {
     #[account(mut)]
-    multisig: Box<Account<'info, Multisig>>,
+    proposer: Signer<'info>
+}
+
+#[derive(Accounts)]
+pub struct EditMultisig<'info> {
+    #[account(mut)]
+    multisig: Box<Account<'info, MultisigV2>>,
     #[account(
         seeds = [multisig.key().as_ref()],
         bump = multisig.nonce,
@@ -229,14 +334,57 @@ pub struct Auth<'info> {
 }
 
 #[derive(Accounts)]
+pub struct Approve<'info> {
+    #[account(
+        mut, 
+        constraint = multisig.owner_set_seqno == transaction.owner_set_seqno @ ErrorCode::InvalidOwnerSetSeqNumber
+    )]
+    multisig: Box<Account<'info, MultisigV2>>,
+    #[account(mut, has_one = multisig)]
+    transaction: Box<Account<'info, Transaction>>,
+    // One of the multisig owners. Checked in the handler.
+    #[account(mut)]
+    owner: Signer<'info>,
+}
+
+#[derive(Accounts)]
 pub struct ExecuteTransaction<'info> {
-    #[account(constraint = multisig.owner_set_seqno == transaction.owner_set_seqno)]
-    multisig: Box<Account<'info, Multisig>>,
+    #[account(
+        mut,
+        constraint = multisig.owner_set_seqno == transaction.owner_set_seqno @ ErrorCode::InvalidOwnerSetSeqNumber
+    )]
+    multisig: Box<Account<'info, MultisigV2>>,
     #[account(
         seeds = [multisig.key().as_ref()],
         bump = multisig.nonce,
     )]
     multisig_signer: UncheckedAccount<'info>,
+    #[account(mut, has_one = multisig)]
+    transaction: Box<Account<'info, Transaction>>,
+}
+
+#[derive(Accounts)]
+#[instruction(
+    pda_timestamp: u64,
+    pda_bump: u8
+)]
+pub struct ExecuteTransactionPda<'info> {
+    #[account(
+        mut,
+        constraint = multisig.owner_set_seqno == transaction.owner_set_seqno @ ErrorCode::InvalidOwnerSetSeqNumber
+    )]
+    multisig: Box<Account<'info, MultisigV2>>,
+    #[account(
+        seeds = [multisig.key().as_ref()],
+        bump = multisig.nonce,
+    )]
+    multisig_signer: UncheckedAccount<'info>,
+    #[account(
+        mut,
+        seeds = [multisig.key().as_ref(), &pda_timestamp.to_le_bytes()],
+        bump = pda_bump,
+    )]
+    pda_account: UncheckedAccount<'info>,
     #[account(mut, has_one = multisig)]
     transaction: Box<Account<'info, Transaction>>,
 }
@@ -247,24 +395,102 @@ pub struct Multisig {
     pub threshold: u64,
     pub nonce: u8,
     pub owner_set_seqno: u32,
+    pub label: String,
+    pub created_on: u64,
+    pub pending_txs: u64
+}
+
+#[account]
+pub struct MultisigV2 {
+    /// multisig account owners
+    pub owners: [OwnerData; 10],
+    /// multisig account version
+    pub version: u8,
+    /// multisig nonce
+    pub nonce: u8,
+    /// multisig label (name or description)
+    pub label: [u8; 32],
+    /// multisig owner set secuency number
+    pub owner_set_seqno: u32,
+    /// multisig required signers threshold
+    pub threshold: u64,
+    /// amount of transaction pending for approval in the multisig
+    pub pending_txs: u64,  
+    /// created time in seconds
+    pub created_on: u64,
 }
 
 #[account]
 pub struct Transaction {
-    // The multisig account this transaction belongs to.
+    /// The multisig account this transaction belongs to.
     pub multisig: Pubkey,
-    // Target program to execute against.
+    /// Target program to execute against.
     pub program_id: Pubkey,
-    // Accounts requried for the transaction.
+    /// Accounts requried for the transaction.
     pub accounts: Vec<TransactionAccount>,
-    // Instruction data for the transaction.
+    /// Instruction data for the transaction.
     pub data: Vec<u8>,
-    // signers[index] is true iff multisig.owners[index] signed the transaction.
+    /// signers[index] is true if multisig.owners[index] signed the transaction.
     pub signers: Vec<bool>,
-    // Boolean ensuring one time execution.
-    pub did_execute: bool,
-    // Owner set sequence number.
+    /// Owner set sequence number.
     pub owner_set_seqno: u32,
+    /// Created blocktime 
+    pub created_on: u64,
+    /// Executed blocktime
+    pub executed_on: u64,
+    /// Operation number
+    pub operation: u8,
+    /// Signatures required for the transaction
+    pub keypairs: Vec<[u8; 64]>,
+    /// The proposer of the transaction
+    pub proposer: Pubkey,
+    /// The timestamp used as part of the seed of the PDA account
+    pub pda_timestamp: u64,
+    /// The bump used to derive the PDA account
+    pub pda_bump: u8
+}
+
+/// Owner parameter passed on create and edit multisig
+#[account]
+pub struct Owner {
+    pub address: Pubkey,
+    pub name: String
+}
+
+/// The owner data saved in the multisig account data
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy)]
+pub struct OwnerData {
+    pub address: Pubkey,
+    pub name: [u8; 32]
+}
+
+// Signature required by the transaction
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy)]
+pub struct Keypair {
+    pub public_key: Pubkey,
+    pub secret_key: [u8; 64]
+}
+
+/// To support fixed size arrays we need to implement
+/// the Default trait for owner data
+impl Default for OwnerData {
+    fn default() -> Self {
+        Self {
+            address: Pubkey::default(),
+            name: [0u8; 32]
+        }
+    }
+}
+
+/// To support fixed size arrays we need to implement
+/// the Default trait for owner data
+impl Default for Keypair {
+    fn default() -> Self {
+        Self {
+            public_key: Pubkey::default(),
+            secret_key: [0u8; 64]
+        }
+    }
 }
 
 impl From<&Transaction> for Instruction {
@@ -303,14 +529,20 @@ impl From<&AccountMeta> for TransactionAccount {
     }
 }
 
-fn assert_unique_owners(owners: &[Pubkey]) -> Result<()> {
+fn assert_unique_owners(owners: &[Owner]) -> Result<()> {
     for (i, owner) in owners.iter().enumerate() {
         require!(
-            !owners.iter().skip(i + 1).any(|item| item == owner),
+            !owners.iter().skip(i + 1).any(|item| item.address.eq(&owner.address)),
             UniqueOwners
         )
     }
     Ok(())
+}
+
+fn string_to_array<'info>(string: &String) -> [u8; 32] {
+    let mut string_data = [0u8; 32];
+    string_data[..string.len()].copy_from_slice(&string.as_bytes());    
+    string_data
 }
 
 #[error]
@@ -323,7 +555,7 @@ pub enum ErrorCode {
     NotEnoughSigners,
     #[msg("Cannot delete a transaction that has been signed by an owner.")]
     TransactionAlreadySigned,
-    #[msg("Overflow when adding.")]
+    #[msg("Operation overflow")]
     Overflow,
     #[msg("Cannot delete a transaction the owner did not create.")]
     UnableToDelete,
@@ -333,4 +565,12 @@ pub enum ErrorCode {
     InvalidThreshold,
     #[msg("Owners must be unique")]
     UniqueOwners,
+    #[msg("Owner name must have less than 32 bytes")]
+    OwnerNameTooLong,
+    #[msg("Multisig nonce is not valid")]
+    InvalidMultisigNonce,
+    #[msg("Multisig version is not valid")]
+    InvalidMultisigVersion,
+    #[msg("Multisig owner set secuency number is not valid")]
+    InvalidOwnerSetSeqNumber,
 }
