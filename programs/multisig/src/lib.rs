@@ -156,6 +156,20 @@ pub mod mean_multisig {
         Ok(())
     }
 
+    /// Cancel a previously voided Tx
+    pub fn cancel_transaction(ctx: Context<CancelTransaction>) -> Result<()> {
+
+        let multisig = &mut ctx.accounts.multisig;
+        // Update the multisig pending Txs
+        if multisig.pending_txs > 0 {
+            multisig.pending_txs = multisig.pending_txs
+                .checked_sub(1)
+                .ok_or(ErrorCode::Overflow)?;
+        }
+
+        Ok(())
+    }
+
     /// Approves a transaction on behalf of an owner of the multisig.
     pub fn approve(ctx: Context<Approve>) -> Result<()> {
 
@@ -214,8 +228,8 @@ pub mod mean_multisig {
 
         let signer = &[&seeds[..]];
         let accounts = ctx.remaining_accounts;
-        let _ = solana_program::program::invoke_signed(&ix, accounts, signer)?;
-        let _ = ctx.accounts.multisig.reload()?;
+        solana_program::program::invoke_signed(&ix, accounts, signer)?;
+        ctx.accounts.multisig.reload()?;
         // Burn the transaction to ensure one time use.
         ctx.accounts.transaction.executed_on = Clock::get()?.unix_timestamp as u64;
 
@@ -312,6 +326,17 @@ pub struct CreateMultisig<'info> {
 }
 
 #[derive(Accounts)]
+pub struct EditMultisig<'info> {
+    #[account(mut)]
+    multisig: Box<Account<'info, MultisigV2>>,
+    #[account(
+        seeds = [multisig.key().as_ref()],
+        bump = multisig.nonce,
+    )]
+    multisig_signer: Signer<'info>,
+}
+
+#[derive(Accounts)]
 pub struct CreateTransaction<'info> {
     #[account(mut)]
     multisig: Box<Account<'info, MultisigV2>>,
@@ -323,14 +348,23 @@ pub struct CreateTransaction<'info> {
 }
 
 #[derive(Accounts)]
-pub struct EditMultisig<'info> {
-    #[account(mut)]
+pub struct CancelTransaction<'info> {
+    #[account(
+        mut,
+        close = proposer,
+        constraint = transaction.owner_set_seqno != multisig.owner_set_seqno @ ErrorCode::InvalidOwnerSetSeqNumber
+    )]
+    transaction: Box<Account<'info, Transaction>>,
+    #[account(
+        mut,
+        constraint = multisig.key() == transaction.multisig @ ErrorCode::InvalidMultisig
+    )]
     multisig: Box<Account<'info, MultisigV2>>,
     #[account(
-        seeds = [multisig.key().as_ref()],
-        bump = multisig.nonce,
+        mut,
+        constraint = proposer.key() == transaction.proposer @ ErrorCode::InvalidOwner
     )]
-    multisig_signer: Signer<'info>,
+    proposer: Signer<'info>
 }
 
 #[derive(Accounts)]
@@ -573,4 +607,6 @@ pub enum ErrorCode {
     InvalidMultisigVersion,
     #[msg("Multisig owner set secuency number is not valid")]
     InvalidOwnerSetSeqNumber,
+    #[msg("Multisig account is not valid")]
+    InvalidMultisig,
 }
