@@ -23,7 +23,11 @@ use std::ops::Deref;
 
 declare_id!("FF7U7Vj1PpBkTPau7frwLLrUHrjkxTQLsH7U5K3T3B3j");
 
-pub const MULTISIG_FEE: u64 = 10000;
+pub const MULTISIG_FEE: u64 = 20_000_000;
+
+pub mod mean_multisig_ops_account {
+    solana_program::declare_id!("3TD6SWY9M1mLY2kZWJNavPLhwXvcRsWdnZLRaMzERJBw");
+}
 
 #[program]
 pub mod mean_multisig {
@@ -68,6 +72,22 @@ pub mod mean_multisig {
         multisig.label = string_to_array(&label);
         multisig.created_on = clock.unix_timestamp as u64;
         multisig.pending_txs = 0;
+
+        // Fee
+        let pay_fee_ix = solana_program::system_instruction::transfer(
+            ctx.accounts.proposer.key, 
+            ctx.accounts.multisig_ops_account.key, 
+            MULTISIG_FEE
+        );
+
+        solana_program::program::invoke(
+            &pay_fee_ix,
+            &[
+                ctx.accounts.proposer.to_account_info(), 
+                ctx.accounts.multisig_ops_account.to_account_info(), 
+                ctx.accounts.system_program.to_account_info()
+            ]
+        )?;
 
         Ok(())
     }
@@ -152,6 +172,22 @@ pub mod mean_multisig {
         multisig.pending_txs = multisig.pending_txs
             .checked_add(1)
             .ok_or(ErrorCode::Overflow)?;
+
+        // Fee
+        let pay_fee_ix = solana_program::system_instruction::transfer(
+            ctx.accounts.proposer.key, 
+            ctx.accounts.multisig_ops_account.key, 
+            MULTISIG_FEE
+        );
+
+        solana_program::program::invoke(
+            &pay_fee_ix,
+            &[
+                ctx.accounts.proposer.to_account_info(), 
+                ctx.accounts.multisig_ops_account.to_account_info(), 
+                ctx.accounts.system_program.to_account_info()
+            ]
+        )?;
 
         Ok(())
     }
@@ -322,6 +358,8 @@ pub struct CreateMultisig<'info> {
         space = 8 + 640 + 1 + 1 + 32 + 4 + 8 + 8 + 8, // 710
     )]
     multisig: Box<Account<'info, MultisigV2>>,
+    #[account(mut, address = mean_multisig_ops_account::ID)]
+    multisig_ops_account: SystemAccount<'info>,
     system_program: Program<'info, System>
 }
 
@@ -344,7 +382,10 @@ pub struct CreateTransaction<'info> {
     transaction: Box<Account<'info, Transaction>>,
     // One of the owners. Checked in the handler.
     #[account(mut)]
-    proposer: Signer<'info>
+    proposer: Signer<'info>,
+    #[account(mut, address = mean_multisig_ops_account::ID)]
+    multisig_ops_account: SystemAccount<'info>,
+    system_program: Program<'info, System>
 }
 
 #[derive(Accounts)]
