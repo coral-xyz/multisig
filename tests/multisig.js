@@ -9,13 +9,11 @@ describe("multisig", () => {
 
   it("Tests the multisig program", async () => {
     const multisig = anchor.web3.Keypair.generate();
-    const [
-      multisigSigner,
-      nonce,
-    ] = await anchor.web3.PublicKey.findProgramAddress(
-      [multisig.publicKey.toBuffer()],
-      program.programId
-    );
+    const [multisigSigner, nonce] =
+      await anchor.web3.PublicKey.findProgramAddress(
+        [multisig.publicKey.toBuffer()],
+        program.programId
+      );
     const multisigSize = 200; // Big enough.
 
     const ownerA = anchor.web3.Keypair.generate();
@@ -28,7 +26,6 @@ describe("multisig", () => {
     await program.rpc.createMultisig(owners, threshold, nonce, {
       accounts: {
         multisig: multisig.publicKey,
-        rent: anchor.web3.SYSVAR_RENT_PUBKEY,
       },
       instructions: [
         await program.account.multisig.createInstruction(
@@ -39,7 +36,9 @@ describe("multisig", () => {
       signers: [multisig],
     });
 
-    let multisigAccount = await program.account.multisig.fetch(multisig.publicKey);
+    let multisigAccount = await program.account.multisig.fetch(
+      multisig.publicKey
+    );
     assert.strictEqual(multisigAccount.nonce, nonce);
     assert.ok(multisigAccount.threshold.eq(new anchor.BN(2)));
     assert.deepStrictEqual(multisigAccount.owners, owners);
@@ -70,7 +69,6 @@ describe("multisig", () => {
         multisig: multisig.publicKey,
         transaction: transaction.publicKey,
         proposer: ownerA.publicKey,
-        rent: anchor.web3.SYSVAR_RENT_PUBKEY,
       },
       instructions: [
         await program.account.transaction.createInstruction(
@@ -81,7 +79,9 @@ describe("multisig", () => {
       signers: [transaction, ownerA],
     });
 
-    const txAccount = await program.account.transaction.fetch(transaction.publicKey);
+    const txAccount = await program.account.transaction.fetch(
+      transaction.publicKey
+    );
 
     assert.ok(txAccount.programId.equals(pid));
     assert.deepStrictEqual(txAccount.accounts, accounts);
@@ -131,5 +131,40 @@ describe("multisig", () => {
     assert.ok(multisigAccount.threshold.eq(new anchor.BN(2)));
     assert.deepStrictEqual(multisigAccount.owners, newOwners);
     assert.ok(multisigAccount.ownerSetSeqno === 1);
+  });
+
+  it("Assert Unique Owners", async () => {
+    const multisig = anchor.web3.Keypair.generate();
+    const [_multisigSigner, nonce] =
+      await anchor.web3.PublicKey.findProgramAddress(
+        [multisig.publicKey.toBuffer()],
+        program.programId
+      );
+    const multisigSize = 200; // Big enough.
+
+    const ownerA = anchor.web3.Keypair.generate();
+    const ownerB = anchor.web3.Keypair.generate();
+    const owners = [ownerA.publicKey, ownerB.publicKey, ownerA.publicKey];
+
+    const threshold = new anchor.BN(2);
+    try {
+      await program.rpc.createMultisig(owners, threshold, nonce, {
+        accounts: {
+          multisig: multisig.publicKey,
+          rent: anchor.web3.SYSVAR_RENT_PUBKEY,
+        },
+        instructions: [
+          await program.account.multisig.createInstruction(
+            multisig,
+            multisigSize
+          ),
+        ],
+        signers: [multisig],
+      });
+      assert.fail();
+    } catch (err) {
+      assert.equal(err.code, 6008);
+      assert.equal(err.msg, "Owners must be unique");
+    }
   });
 });

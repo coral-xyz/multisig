@@ -10,7 +10,7 @@ final_threshold=2
 
 multisig=$(awk 'END{print $1}'<<<$(multisig admin new $initial_threshold $initial_owners))
 echo multisig $multisig
-tx=$(multisig -m $multisig propose multisig edit $final_owners --threshold $final_threshold | tail -n1)
+tx=$(multisig -m $multisig propose edit $final_owners --threshold $final_threshold | tail -n1)
 echo tx $tx
 # echo 'sleeping so network can reconcile account ownership (not sure why this is necessary but it never works immediately)'
 # sleep 14

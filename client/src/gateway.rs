@@ -11,7 +11,7 @@ use anchor_client::solana_sdk::system_program;
 use anchor_client::solana_sdk::{
     pubkey::Pubkey,
     signature::{Keypair, Signer},
-    system_instruction, sysvar,
+    system_instruction,
 };
 use anchor_client::{Cluster, Program, RequestBuilder};
 use anyhow::Result;
@@ -78,8 +78,8 @@ impl<'a> MultisigGateway<'a> {
             ))
             .accounts(serum_multisig::accounts::CreateMultisig {
                 multisig: multisig_acct.pubkey(),
-                signer,
-                rent: sysvar::rent::ID,
+                // signer,
+                // rent: sysvar::rent::ID,
             })
             .args(serum_multisig::instruction::CreateMultisig {
                 owners,
@@ -152,7 +152,7 @@ impl<'a> MultisigGateway<'a> {
                 multisig,
                 transaction: tx_acct.pubkey(),
                 proposer: self.payer.pubkey(),
-                rent: sysvar::rent::ID,
+                // rent: sysvar::rent::ID,
             })
             .args(serum_multisig::instruction::CreateTransaction { pid, accs, data });
 
