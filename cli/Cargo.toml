@@ -6,8 +6,8 @@ edition = "2018"
 
 [dependencies]
 multisig-client = { path = "../client" }
-anchor-client = { git = "https://github.com/jet-lab/anchor", branch = "accounts" }
-anchor-spl = { git = "https://github.com/jet-lab/anchor", branch = "accounts" }
+anchor-client = "0.21.0"
+anchor-spl = "0.21.0"
 spl-token = "3.2.0"
 serum-multisig = { path = "../programs/multisig", features = ["no-entrypoint"]  }
 shellexpand = "2.1.0"
