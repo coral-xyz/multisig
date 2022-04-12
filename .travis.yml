@@ -6,7 +6,22 @@ env:
   global:
     - NODE_VERSION="v14.7.0"
     - SOLANA_VERSION="v1.8.0"
-    - ANCHOR_VERSION="v0.18.2"
+    - ANCHOR_VERSION="v0.19.0"
+
+cache:
+  directories:
+    # solana
+    - $HOME/.cache/solana/
+    - $HOME/.local/share/solana/
+    # Cargo
+    - $HOME/.cargo/bin/
+    - $HOME/.cargo/registry/index/
+    - $HOME/.cargo/registry/cache/
+    - $HOME/.cargo/git/db/
+    - $TRAVIS_BUILD_DIR/target
+    # npm
+    - $HOME/.npm
+    # - $TRAVIS_BUILD_DIR/node_modules    
 
 before_deploy:
   - anchor build --verifiable
@@ -33,18 +48,24 @@ deploy:
 _defaults: &defaults
   before_install:
   - nvm install $NODE_VERSION
-  - npm install -g mocha
-  - npm install -g @project-serum/anchor
+  - npm ci
   - sudo apt-get install -y pkg-config build-essential libudev-dev
   - sh -c "$(curl -sSfL https://release.solana.com/${SOLANA_VERSION}/install)"
   - export PATH="/home/travis/.local/share/solana/install/active_release/bin:$PATH"
   - export NODE_PATH="/home/travis/.nvm/versions/node/${NODE_VERSION}/lib/node_modules/:${NODE_PATH}"
   - yes | solana-keygen new
-  - cargo install --git https://github.com/project-serum/anchor --tag ${ANCHOR_VERSION} anchor-cli --locked
 
 jobs:
   include:
     - <<: *defaults
       name: Runs the tests
       script:
-        - anchor test
+        - npx anchor build
+        - npx anchor test
+    - <<: *defaults
+      name: Linting & clippy
+      script:
+        - npm run lint
+        - rustup component add rustfmt clippy
+        - cargo-fmt --all -- --check
+        - cargo clippy --all-targets

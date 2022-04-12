@@ -1,6 +1,6 @@
 [package]
 name = "serum-multisig"
-version = "0.8.0"
+version = "0.9.0"
 description = "Created with Anchor"
 edition = "2018"
 license = "AGPL-3.0-or-later"
@@ -16,4 +16,4 @@ cpi = ["no-entrypoint"]
 default = []
 
 [dependencies]
-anchor-lang = { git = "https://github.com/jet-lab/anchor", branch = "accounts" }
+anchor-lang = "0.21.0"

@@ -1,4 +1,4 @@
-anchor_version = "0.18.2"
+anchor_version = "0.19.0"
 
 [provider]
 cluster = "Localnet"
@@ -16,4 +16,4 @@ serum_multisig = "BjJBpaXqRDahqNQ9G41djjXKo23X5tUL6tZoX6ypiWue"
 serum_multisig = "BjJBpaXqRDahqNQ9G41djjXKo23X5tUL6tZoX6ypiWue"
 
 [scripts]
-test = "mocha -t 1000000 tests/"
+test = "npx mocha -t 1000000 tests/"

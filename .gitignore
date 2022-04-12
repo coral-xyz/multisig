@@ -1,3 +1,5 @@
 .anchor
 target
 .idea
+node_modules
+test-ledger
