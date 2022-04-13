@@ -23,7 +23,11 @@ use std::ops::Deref;
 
 declare_id!("FF7U7Vj1PpBkTPau7frwLLrUHrjkxTQLsH7U5K3T3B3j");
 
-pub const MULTISIG_FEE: u64 = 10000;
+pub const MULTISIG_FEE: u64 = 20_000_000;
+
+pub mod mean_multisig_ops_account {
+    solana_program::declare_id!("3TD6SWY9M1mLY2kZWJNavPLhwXvcRsWdnZLRaMzERJBw");
+}
 
 #[program]
 pub mod mean_multisig {
@@ -68,6 +72,22 @@ pub mod mean_multisig {
         multisig.label = string_to_array(&label);
         multisig.created_on = clock.unix_timestamp as u64;
         multisig.pending_txs = 0;
+
+        // Fee
+        let pay_fee_ix = solana_program::system_instruction::transfer(
+            ctx.accounts.proposer.key, 
+            ctx.accounts.multisig_ops_account.key, 
+            MULTISIG_FEE
+        );
+
+        solana_program::program::invoke(
+            &pay_fee_ix,
+            &[
+                ctx.accounts.proposer.to_account_info(), 
+                ctx.accounts.multisig_ops_account.to_account_info(), 
+                ctx.accounts.system_program.to_account_info()
+            ]
+        )?;
 
         Ok(())
     }
@@ -153,6 +173,36 @@ pub mod mean_multisig {
             .checked_add(1)
             .ok_or(ErrorCode::Overflow)?;
 
+        // Fee
+        let pay_fee_ix = solana_program::system_instruction::transfer(
+            ctx.accounts.proposer.key, 
+            ctx.accounts.multisig_ops_account.key, 
+            MULTISIG_FEE
+        );
+
+        solana_program::program::invoke(
+            &pay_fee_ix,
+            &[
+                ctx.accounts.proposer.to_account_info(), 
+                ctx.accounts.multisig_ops_account.to_account_info(), 
+                ctx.accounts.system_program.to_account_info()
+            ]
+        )?;
+
+        Ok(())
+    }
+
+    /// Cancel a previously voided Tx
+    pub fn cancel_transaction(ctx: Context<CancelTransaction>) -> Result<()> {
+
+        let multisig = &mut ctx.accounts.multisig;
+        // Update the multisig pending Txs
+        if multisig.pending_txs > 0 {
+            multisig.pending_txs = multisig.pending_txs
+                .checked_sub(1)
+                .ok_or(ErrorCode::Overflow)?;
+        }
+
         Ok(())
     }
 
@@ -214,8 +264,8 @@ pub mod mean_multisig {
 
         let signer = &[&seeds[..]];
         let accounts = ctx.remaining_accounts;
-        let _ = solana_program::program::invoke_signed(&ix, accounts, signer)?;
-        let _ = ctx.accounts.multisig.reload()?;
+        solana_program::program::invoke_signed(&ix, accounts, signer)?;
+        ctx.accounts.multisig.reload()?;
         // Burn the transaction to ensure one time use.
         ctx.accounts.transaction.executed_on = Clock::get()?.unix_timestamp as u64;
 
@@ -308,18 +358,9 @@ pub struct CreateMultisig<'info> {
         space = 8 + 640 + 1 + 1 + 32 + 4 + 8 + 8 + 8, // 710
     )]
     multisig: Box<Account<'info, MultisigV2>>,
+    #[account(mut, address = mean_multisig_ops_account::ID)]
+    multisig_ops_account: SystemAccount<'info>,
     system_program: Program<'info, System>
-}
-
-#[derive(Accounts)]
-pub struct CreateTransaction<'info> {
-    #[account(mut)]
-    multisig: Box<Account<'info, MultisigV2>>,
-    #[account(zero, signer)]
-    transaction: Box<Account<'info, Transaction>>,
-    // One of the owners. Checked in the handler.
-    #[account(mut)]
-    proposer: Signer<'info>
 }
 
 #[derive(Accounts)]
@@ -331,6 +372,40 @@ pub struct EditMultisig<'info> {
         bump = multisig.nonce,
     )]
     multisig_signer: Signer<'info>,
+}
+
+#[derive(Accounts)]
+pub struct CreateTransaction<'info> {
+    #[account(mut)]
+    multisig: Box<Account<'info, MultisigV2>>,
+    #[account(zero, signer)]
+    transaction: Box<Account<'info, Transaction>>,
+    // One of the owners. Checked in the handler.
+    #[account(mut)]
+    proposer: Signer<'info>,
+    #[account(mut, address = mean_multisig_ops_account::ID)]
+    multisig_ops_account: SystemAccount<'info>,
+    system_program: Program<'info, System>
+}
+
+#[derive(Accounts)]
+pub struct CancelTransaction<'info> {
+    #[account(
+        mut,
+        close = proposer,
+        constraint = transaction.owner_set_seqno != multisig.owner_set_seqno @ ErrorCode::InvalidOwnerSetSeqNumber
+    )]
+    transaction: Box<Account<'info, Transaction>>,
+    #[account(
+        mut,
+        constraint = multisig.key() == transaction.multisig @ ErrorCode::InvalidMultisig
+    )]
+    multisig: Box<Account<'info, MultisigV2>>,
+    #[account(
+        mut,
+        constraint = proposer.key() == transaction.proposer @ ErrorCode::InvalidOwner
+    )]
+    proposer: Signer<'info>
 }
 
 #[derive(Accounts)]
@@ -573,4 +648,6 @@ pub enum ErrorCode {
     InvalidMultisigVersion,
     #[msg("Multisig owner set secuency number is not valid")]
     InvalidOwnerSetSeqNumber,
+    #[msg("Multisig account is not valid")]
+    InvalidMultisig,
 }
