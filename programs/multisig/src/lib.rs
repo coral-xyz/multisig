@@ -227,12 +227,13 @@ pub mod mean_multisig {
             .position(|a| a.address.eq(&ctx.accounts.owner.key))
             .ok_or(ErrorCode::InvalidOwner)?;
 
-        // Transaction has expired already?
-        let now = Clock::get()?.unix_timestamp as u64;
+        // TODO: Uncomment later
+        // // Transaction has expired already?
+        // let now = Clock::get()?.unix_timestamp as u64;
 
-        if ctx.accounts.transaction_detail.expiration_date < now {
-            return Err(ErrorCode::AlreadyExpired.into());
-        }
+        // if ctx.accounts.transaction_detail.expiration_date < now {
+        //     return Err(ErrorCode::AlreadyExpired.into());
+        // }
 
         ctx.accounts.transaction.signers[owner_index] = true;
 
@@ -247,12 +248,13 @@ pub mod mean_multisig {
             return Err(ErrorCode::AlreadyExecuted.into());
         }
 
-        // Transaction has expired already?
-        let now = Clock::get()?.unix_timestamp as u64;
+        // TODO: Uncomment later
+        // // Transaction has expired already?
+        // let now = Clock::get()?.unix_timestamp as u64;
 
-        if ctx.accounts.transaction_detail.expiration_date < now {
-            return Err(ErrorCode::AlreadyExpired.into());
-        }
+        // if ctx.accounts.transaction_detail.expiration_date < now {
+        //     return Err(ErrorCode::AlreadyExpired.into());
+        // }
 
         // Do we have enough signers.
         let sig_count = ctx
