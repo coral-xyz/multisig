@@ -172,6 +172,7 @@ pub mod mean_multisig {
 
         let tx_detail = &mut ctx.accounts.transaction_detail;
         // Save transaction detail
+        tx_detail.multisig = ctx.accounts.multisig.key();
         tx_detail.transaction = ctx.accounts.transaction.key();
         tx_detail.title = string_to_array_64(&title);
         tx_detail.description = string_to_array_512(&description);
@@ -227,13 +228,12 @@ pub mod mean_multisig {
             .position(|a| a.address.eq(&ctx.accounts.owner.key))
             .ok_or(ErrorCode::InvalidOwner)?;
 
-        // TODO: Uncomment later
-        // // Transaction has expired already?
-        // let now = Clock::get()?.unix_timestamp as u64;
+        // Transaction has expired already?
+        let now = Clock::get()?.unix_timestamp as u64;
 
-        // if ctx.accounts.transaction_detail.expiration_date < now {
-        //     return Err(ErrorCode::AlreadyExpired.into());
-        // }
+        if ctx.accounts.transaction_detail.expiration_date < now {
+            return Err(ErrorCode::AlreadyExpired.into());
+        }
 
         ctx.accounts.transaction.signers[owner_index] = true;
 
@@ -248,13 +248,12 @@ pub mod mean_multisig {
             return Err(ErrorCode::AlreadyExecuted.into());
         }
 
-        // TODO: Uncomment later
-        // // Transaction has expired already?
-        // let now = Clock::get()?.unix_timestamp as u64;
+        // Transaction has expired already?
+        let now = Clock::get()?.unix_timestamp as u64;
 
-        // if ctx.accounts.transaction_detail.expiration_date < now {
-        //     return Err(ErrorCode::AlreadyExpired.into());
-        // }
+        if ctx.accounts.transaction_detail.expiration_date < now {
+            return Err(ErrorCode::AlreadyExpired.into());
+        }
 
         // Do we have enough signers.
         let sig_count = ctx
@@ -560,7 +559,9 @@ pub struct Transaction {
 
 #[account]
 pub struct TransactionDetail {
-    /// The transaction account these transaction detail belongs to.
+    /// The multisig account the transaction detail belongs to 
+    pub multisig: Pubkey,
+    /// The transaction account the transaction detail belongs to
     pub transaction: Pubkey,
     /// A short title to identify the transaction
     pub title: [u8; 64],
