@@ -676,20 +676,20 @@ pub enum ErrorCode {
     UnableToDelete,
     #[msg("The given transaction has already been executed.")]
     AlreadyExecuted,
-    #[msg("Transaction execution date has expired")]
+    #[msg("Transaction proposal has expired.")]
     AlreadyExpired,
     #[msg("Threshold must be less than or equal to the number of owners.")]
     InvalidThreshold,
-    #[msg("Owners must be unique")]
+    #[msg("Owners must be unique.")]
     UniqueOwners,
-    #[msg("Owner name must have less than 32 bytes")]
+    #[msg("Owner name must have less than 32 bytes.")]
     OwnerNameTooLong,
-    #[msg("Multisig nonce is not valid")]
+    #[msg("Multisig nonce is not valid.")]
     InvalidMultisigNonce,
-    #[msg("Multisig version is not valid")]
+    #[msg("Multisig version is not valid.")]
     InvalidMultisigVersion,
-    #[msg("Multisig owner set secuency number is not valid")]
+    #[msg("Multisig owner set secuency number is not valid.")]
     InvalidOwnerSetSeqNumber,
-    #[msg("Multisig account is not valid")]
+    #[msg("Multisig account is not valid.")]
     InvalidMultisig,
 }
