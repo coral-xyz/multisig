@@ -607,10 +607,6 @@ pub struct Transaction {
 
 #[account]
 pub struct TransactionDetail {
-//     /// The multisig account the transaction detail belongs to 
-//     pub multisig: Pubkey,
-//     /// The transaction account the transaction detail belongs to
-//     pub transaction: Pubkey,
     /// A short title to identify the transaction
     pub title: [u8; 64],
     /// A long description with more details about the transaction
