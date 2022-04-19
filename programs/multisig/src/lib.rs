@@ -172,8 +172,8 @@ pub mod mean_multisig {
 
         let tx_detail = &mut ctx.accounts.transaction_detail;
         // Save transaction detail
-        tx_detail.multisig = ctx.accounts.multisig.key();
-        tx_detail.transaction = ctx.accounts.transaction.key();
+        // tx_detail.multisig = ctx.accounts.multisig.key();
+        // tx_detail.transaction = ctx.accounts.transaction.key();
         tx_detail.title = string_to_array_64(&title);
         tx_detail.description = string_to_array_512(&description);
         tx_detail.expiration_date = expiration_date;
@@ -231,7 +231,9 @@ pub mod mean_multisig {
         // Transaction has expired already?
         let now = Clock::get()?.unix_timestamp as u64;
 
-        if ctx.accounts.transaction_detail.expiration_date < now {
+        if ctx.accounts.transaction_detail.expiration_date > 0 && 
+           ctx.accounts.transaction_detail.expiration_date < now 
+        {
             return Err(ErrorCode::AlreadyExpired.into());
         }
 
@@ -251,7 +253,9 @@ pub mod mean_multisig {
         // Transaction has expired already?
         let now = Clock::get()?.unix_timestamp as u64;
 
-        if ctx.accounts.transaction_detail.expiration_date < now {
+        if ctx.accounts.transaction_detail.expiration_date > 0 && 
+           ctx.accounts.transaction_detail.expiration_date < now 
+        {
             return Err(ErrorCode::AlreadyExpired.into());
         }
 
@@ -314,6 +318,15 @@ pub mod mean_multisig {
         // Has this been executed already?
         if ctx.accounts.transaction.executed_on > 0 {
             return Err(ErrorCode::AlreadyExecuted.into());
+        }
+
+        // Transaction has expired already?
+        let now = Clock::get()?.unix_timestamp as u64;
+
+        if ctx.accounts.transaction_detail.expiration_date > 0 && 
+           ctx.accounts.transaction_detail.expiration_date < now 
+        {
+            return Err(ErrorCode::AlreadyExpired.into());
         }
 
         // Do we have enough signers.
@@ -405,7 +418,13 @@ pub struct CreateTransaction<'info> {
     multisig: Box<Account<'info, MultisigV2>>,
     #[account(zero, signer)]
     transaction: Box<Account<'info, Transaction>>,
-    #[account(zero, signer)]
+    #[account(
+        init,
+        payer = proposer,
+        seeds = [multisig.key().as_ref(), transaction.key().as_ref()],
+        bump,
+        space = 8 + 584 // discriminator + account size
+    )]
     transaction_detail: Box<Account<'info, TransactionDetail>>,
     // One of the owners. Checked in the handler.
     #[account(mut)]
@@ -444,11 +463,18 @@ pub struct Approve<'info> {
     multisig: Box<Account<'info, MultisigV2>>,
     #[account(mut, has_one = multisig)]
     transaction: Box<Account<'info, Transaction>>,
-    #[account(has_one = transaction)]
+    #[account(
+        init_if_needed,
+        payer = owner,
+        seeds = [multisig.key().as_ref(), transaction.key().as_ref()],
+        bump,
+        space = 8 + 584 // discriminator + account size
+    )]
     transaction_detail: Box<Account<'info, TransactionDetail>>,
     // One of the multisig owners. Checked in the handler.
     #[account(mut)]
     owner: Signer<'info>,
+    system_program: Program<'info, System>
 }
 
 #[derive(Accounts)]
@@ -465,8 +491,18 @@ pub struct ExecuteTransaction<'info> {
     multisig_signer: UncheckedAccount<'info>,
     #[account(mut, has_one = multisig)]
     transaction: Box<Account<'info, Transaction>>,
-    #[account(has_one = transaction)]
+    #[account(
+        init_if_needed,
+        payer = payer,
+        seeds = [multisig.key().as_ref(), transaction.key().as_ref()],
+        bump,
+        space = 8 + 584 // discriminator + account size
+    )]
     transaction_detail: Box<Account<'info, TransactionDetail>>,
+    // One of the multisig owners. Checked in the handler.
+    #[account(mut)]
+    payer: Signer<'info>,
+    system_program: Program<'info, System>
 }
 
 #[derive(Accounts)]
@@ -493,6 +529,18 @@ pub struct ExecuteTransactionPda<'info> {
     pda_account: UncheckedAccount<'info>,
     #[account(mut, has_one = multisig)]
     transaction: Box<Account<'info, Transaction>>,
+    #[account(
+        init_if_needed,
+        payer = payer,
+        seeds = [multisig.key().as_ref(), transaction.key().as_ref()],
+        bump,
+        space = 8 + 584 // discriminator + account size
+    )]
+    transaction_detail: Box<Account<'info, TransactionDetail>>,
+    // One of the multisig owners. Checked in the handler.
+    #[account(mut)]
+    payer: Signer<'info>,
+    system_program: Program<'info, System>
 }
 
 #[account]
@@ -559,10 +607,10 @@ pub struct Transaction {
 
 #[account]
 pub struct TransactionDetail {
-    /// The multisig account the transaction detail belongs to 
-    pub multisig: Pubkey,
-    /// The transaction account the transaction detail belongs to
-    pub transaction: Pubkey,
+//     /// The multisig account the transaction detail belongs to 
+//     pub multisig: Pubkey,
+//     /// The transaction account the transaction detail belongs to
+//     pub transaction: Pubkey,
     /// A short title to identify the transaction
     pub title: [u8; 64],
     /// A long description with more details about the transaction
