@@ -4,6 +4,8 @@ extern crate anyhow;
 extern crate rand;
 extern crate serum_multisig;
 
+use std::cmp::max;
+use std::convert::TryInto;
 use std::rc::Rc;
 
 use anchor_client::solana_sdk::instruction::AccountMeta;
@@ -16,7 +18,7 @@ use anchor_client::solana_sdk::{
 use anchor_client::{Cluster, Program, RequestBuilder};
 use anyhow::Result;
 use rand::rngs::OsRng;
-use serum_multisig::{Transaction, TransactionAccount, Multisig};
+use serum_multisig::{Multisig, Transaction, TransactionAccount};
 
 use crate::config::MultisigConfig;
 
@@ -28,7 +30,6 @@ pub struct MultisigGateway<'a> {
 }
 
 impl<'a> MultisigGateway<'a> {
-
     pub fn get_multisig(&self, multisig: Pubkey) -> Result<Multisig> {
         Ok(self.client.account::<Multisig>(multisig)?)
     }
@@ -41,8 +42,13 @@ impl<'a> MultisigGateway<'a> {
         Ok(self.client.accounts::<Multisig>(vec![])?)
     }
 
-    pub fn list_transactions(&self, multisig: Option<Pubkey>) -> Result<Vec<(Pubkey, Transaction)>> {
-        Ok(self.client.accounts::<Transaction>(vec![])?
+    pub fn list_transactions(
+        &self,
+        multisig: Option<Pubkey>,
+    ) -> Result<Vec<(Pubkey, Transaction)>> {
+        Ok(self
+            .client
+            .accounts::<Transaction>(vec![])?
             .into_iter()
             .filter(|(_, acct)| match multisig {
                 Some(ms) => acct.multisig == ms,
@@ -62,9 +68,20 @@ impl<'a> MultisigGateway<'a> {
         )
     }
 
-    pub fn create_multisig(&self, threshold: u64, owners: Vec<Pubkey>) -> Result<(Pubkey, Pubkey)> {
+    /// max_owners: sets the space/lamports sufficiently large to handle this many owners
+    ///  └─> if unset, defaults to allow owner list to grow by 10
+    pub fn create_multisig(
+        &self,
+        threshold: u64,
+        owners: Vec<Pubkey>,
+        max_owners: Option<usize>,
+    ) -> Result<(Pubkey, Pubkey)> {
         let multisig_acct = Keypair::generate(&mut OsRng);
         let (signer, bump) = self.signer(multisig_acct.pubkey());
+        let space = 8
+            + std::mem::size_of::<Multisig>()
+            + std::mem::size_of::<Pubkey>()
+                * max(owners.capacity(), max_owners.unwrap_or(owners.len() + 10));
         self.client
             .request()
             .instruction(system_instruction::create_account(
@@ -72,8 +89,8 @@ impl<'a> MultisigGateway<'a> {
                 &multisig_acct.pubkey(),
                 self.client
                     .rpc()
-                    .get_minimum_balance_for_rent_exemption(500)?,
-                500,
+                    .get_minimum_balance_for_rent_exemption(space)?,
+                space.try_into().unwrap(),
                 &&self.client.id(),
             ))
             .accounts(serum_multisig::accounts::CreateMultisig {
@@ -216,7 +233,8 @@ impl<'a> MultisigGateway<'a> {
             })
             .collect::<Vec<AccountMeta>>();
 
-        let sig = self.client
+        let sig = self
+            .client
             .request()
             .accounts(serum_multisig::accounts::ExecuteTransaction {
                 multisig,

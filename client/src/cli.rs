@@ -70,6 +70,8 @@ pub struct CreateMultisig {
     pub threshold: u64,
     #[clap(required = true)]
     pub owners: Vec<Pubkey>,
+    #[clap(long, help="sets the space/lamports sufficiently large to handle this many owners. if unset, defaults to allow owner list to grow by 10")]
+    pub max_owners: Option<usize>,
 }
 
 #[derive(Parser, Debug)]
@@ -135,7 +137,7 @@ pub fn run_multisig_command(
 ) -> Result<()> {
     match job {
         MultisigCommand::New(cmd) => {
-            let keys = service.program.create_multisig(cmd.threshold, cmd.owners)?;
+            let keys = service.program.create_multisig(cmd.threshold, cmd.owners, cmd.max_owners)?;
             println!("{} {}", keys.0, keys.1);
         }
         MultisigCommand::AddDelegates(cmd) => {
