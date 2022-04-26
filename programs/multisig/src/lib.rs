@@ -57,7 +57,7 @@ pub mod mean_multisig {
             let owner = owners.get(i).unwrap().clone();
             multisig_owners[i] = OwnerData {
                 address: owner.address,
-                name: string_to_array(&owner.name)
+                name: string_to_array_32(&owner.name)
             };
         }
 
@@ -69,7 +69,7 @@ pub mod mean_multisig {
         multisig.nonce = nonce;
         multisig.threshold = threshold;
         multisig.owner_set_seqno = 0;
-        multisig.label = string_to_array(&label);
+        multisig.label = string_to_array_32(&label);
         multisig.created_on = clock.unix_timestamp as u64;
         multisig.pending_txs = 0;
 
@@ -107,15 +107,14 @@ pub mod mean_multisig {
 
         let multisig = &mut ctx.accounts.multisig;
         let mut multisig_owners = [OwnerData::default(); 10];
-
         multisig.threshold = threshold;
-        multisig.label = string_to_array(&label);
+        multisig.label = string_to_array_32(&label);
 
         for i in 0..owners.len() {
             let owner = owners.get(i).unwrap();
             multisig_owners[i] = OwnerData {
                 address: owner.address,
-                name: string_to_array(&owner.name)
+                name: string_to_array_32(&owner.name)
             };
         }
 
@@ -130,9 +129,12 @@ pub mod mean_multisig {
     pub fn create_transaction(
         ctx: Context<CreateTransaction>,
         pid: Pubkey,
-        operation: u8,
         accs: Vec<TransactionAccount>,
         data: Vec<u8>,
+        operation: u8,
+        title: String,
+        description: String,
+        expiration_date: u64,
         pda_timestamp: u64,
         pda_bump: u8
 
@@ -152,7 +154,7 @@ pub mod mean_multisig {
 
         let tx = &mut ctx.accounts.transaction;
         let clock = Clock::get()?;
-
+        // Save transaction data
         tx.program_id = pid;
         tx.accounts = accs;
         tx.data = data;
@@ -168,6 +170,15 @@ pub mod mean_multisig {
         tx.pda_timestamp = pda_timestamp;
         tx.pda_bump = pda_bump;
 
+        let tx_detail = &mut ctx.accounts.transaction_detail;
+        // Save transaction detail
+        // tx_detail.multisig = ctx.accounts.multisig.key();
+        // tx_detail.transaction = ctx.accounts.transaction.key();
+        tx_detail.title = string_to_array_64(&title);
+        tx_detail.description = string_to_array_512(&description);
+        tx_detail.expiration_date = expiration_date;
+
+        // Update multisig pending transactions 
         let multisig = &mut ctx.accounts.multisig; 
         multisig.pending_txs = multisig.pending_txs
             .checked_add(1)
@@ -217,6 +228,15 @@ pub mod mean_multisig {
             .position(|a| a.address.eq(&ctx.accounts.owner.key))
             .ok_or(ErrorCode::InvalidOwner)?;
 
+        // Transaction has expired already?
+        let now = Clock::get()?.unix_timestamp as u64;
+
+        if ctx.accounts.transaction_detail.expiration_date > 0 && 
+           ctx.accounts.transaction_detail.expiration_date < now 
+        {
+            return Err(ErrorCode::AlreadyExpired.into());
+        }
+
         ctx.accounts.transaction.signers[owner_index] = true;
 
         Ok(())
@@ -228,6 +248,15 @@ pub mod mean_multisig {
         // Has this been executed already?
         if ctx.accounts.transaction.executed_on > 0 {
             return Err(ErrorCode::AlreadyExecuted.into());
+        }
+
+        // Transaction has expired already?
+        let now = Clock::get()?.unix_timestamp as u64;
+
+        if ctx.accounts.transaction_detail.expiration_date > 0 && 
+           ctx.accounts.transaction_detail.expiration_date < now 
+        {
+            return Err(ErrorCode::AlreadyExpired.into());
         }
 
         // Do we have enough signers.
@@ -289,6 +318,15 @@ pub mod mean_multisig {
         // Has this been executed already?
         if ctx.accounts.transaction.executed_on > 0 {
             return Err(ErrorCode::AlreadyExecuted.into());
+        }
+
+        // Transaction has expired already?
+        let now = Clock::get()?.unix_timestamp as u64;
+
+        if ctx.accounts.transaction_detail.expiration_date > 0 && 
+           ctx.accounts.transaction_detail.expiration_date < now 
+        {
+            return Err(ErrorCode::AlreadyExpired.into());
         }
 
         // Do we have enough signers.
@@ -380,6 +418,14 @@ pub struct CreateTransaction<'info> {
     multisig: Box<Account<'info, MultisigV2>>,
     #[account(zero, signer)]
     transaction: Box<Account<'info, Transaction>>,
+    #[account(
+        init,
+        payer = proposer,
+        seeds = [multisig.key().as_ref(), transaction.key().as_ref()],
+        bump,
+        space = 8 + 584 // discriminator + account size
+    )]
+    transaction_detail: Box<Account<'info, TransactionDetail>>,
     // One of the owners. Checked in the handler.
     #[account(mut)]
     proposer: Signer<'info>,
@@ -392,20 +438,28 @@ pub struct CreateTransaction<'info> {
 pub struct CancelTransaction<'info> {
     #[account(
         mut,
+        constraint = multisig.key() == transaction.multisig @ ErrorCode::InvalidMultisig
+    )]
+    multisig: Box<Account<'info, MultisigV2>>,
+    #[account(
+        mut,
         close = proposer,
         constraint = transaction.owner_set_seqno != multisig.owner_set_seqno @ ErrorCode::InvalidOwnerSetSeqNumber
     )]
     transaction: Box<Account<'info, Transaction>>,
     #[account(
         mut,
-        constraint = multisig.key() == transaction.multisig @ ErrorCode::InvalidMultisig
+        close = proposer,
+        seeds = [multisig.key().as_ref(), transaction.key().as_ref()],
+        bump
     )]
-    multisig: Box<Account<'info, MultisigV2>>,
+    transaction_detail: Box<Account<'info, TransactionDetail>>,
     #[account(
         mut,
         constraint = proposer.key() == transaction.proposer @ ErrorCode::InvalidOwner
     )]
-    proposer: Signer<'info>
+    proposer: Signer<'info>,
+    system_program: Program<'info, System>
 }
 
 #[derive(Accounts)]
@@ -417,9 +471,18 @@ pub struct Approve<'info> {
     multisig: Box<Account<'info, MultisigV2>>,
     #[account(mut, has_one = multisig)]
     transaction: Box<Account<'info, Transaction>>,
+    #[account(
+        init_if_needed,
+        payer = owner,
+        seeds = [multisig.key().as_ref(), transaction.key().as_ref()],
+        bump,
+        space = 8 + 584 // discriminator + account size
+    )]
+    transaction_detail: Box<Account<'info, TransactionDetail>>,
     // One of the multisig owners. Checked in the handler.
     #[account(mut)]
     owner: Signer<'info>,
+    system_program: Program<'info, System>
 }
 
 #[derive(Accounts)]
@@ -436,6 +499,18 @@ pub struct ExecuteTransaction<'info> {
     multisig_signer: UncheckedAccount<'info>,
     #[account(mut, has_one = multisig)]
     transaction: Box<Account<'info, Transaction>>,
+    #[account(
+        init_if_needed,
+        payer = payer,
+        seeds = [multisig.key().as_ref(), transaction.key().as_ref()],
+        bump,
+        space = 8 + 584 // discriminator + account size
+    )]
+    transaction_detail: Box<Account<'info, TransactionDetail>>,
+    // One of the multisig owners. Checked in the handler.
+    #[account(mut)]
+    payer: Signer<'info>,
+    system_program: Program<'info, System>
 }
 
 #[derive(Accounts)]
@@ -462,6 +537,18 @@ pub struct ExecuteTransactionPda<'info> {
     pda_account: UncheckedAccount<'info>,
     #[account(mut, has_one = multisig)]
     transaction: Box<Account<'info, Transaction>>,
+    #[account(
+        init_if_needed,
+        payer = payer,
+        seeds = [multisig.key().as_ref(), transaction.key().as_ref()],
+        bump,
+        space = 8 + 584 // discriminator + account size
+    )]
+    transaction_detail: Box<Account<'info, TransactionDetail>>,
+    // One of the multisig owners. Checked in the handler.
+    #[account(mut)]
+    payer: Signer<'info>,
+    system_program: Program<'info, System>
 }
 
 #[account]
@@ -515,7 +602,8 @@ pub struct Transaction {
     pub executed_on: u64,
     /// Operation number
     pub operation: u8,
-    /// Signatures required for the transaction
+    /// [deprecated] Signatures required for the transaction
+    // #[deprecated]
     pub keypairs: Vec<[u8; 64]>,
     /// The proposer of the transaction
     pub proposer: Pubkey,
@@ -523,6 +611,16 @@ pub struct Transaction {
     pub pda_timestamp: u64,
     /// The bump used to derive the PDA account
     pub pda_bump: u8
+}
+
+#[account]
+pub struct TransactionDetail {
+    /// A short title to identify the transaction
+    pub title: [u8; 64],
+    /// A long description with more details about the transaction
+    pub description: [u8; 512],
+    /// Expiration date (timestamp)
+    pub expiration_date: u64
 }
 
 /// Owner parameter passed on create and edit multisig
@@ -539,13 +637,6 @@ pub struct OwnerData {
     pub name: [u8; 32]
 }
 
-// Signature required by the transaction
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy)]
-pub struct Keypair {
-    pub public_key: Pubkey,
-    pub secret_key: [u8; 64]
-}
-
 /// To support fixed size arrays we need to implement
 /// the Default trait for owner data
 impl Default for OwnerData {
@@ -553,17 +644,6 @@ impl Default for OwnerData {
         Self {
             address: Pubkey::default(),
             name: [0u8; 32]
-        }
-    }
-}
-
-/// To support fixed size arrays we need to implement
-/// the Default trait for owner data
-impl Default for Keypair {
-    fn default() -> Self {
-        Self {
-            public_key: Pubkey::default(),
-            secret_key: [0u8; 64]
         }
     }
 }
@@ -614,13 +694,25 @@ fn assert_unique_owners(owners: &[Owner]) -> Result<()> {
     Ok(())
 }
 
-fn string_to_array<'info>(string: &String) -> [u8; 32] {
+fn string_to_array_32<'info>(string: &String) -> [u8; 32] {
     let mut string_data = [0u8; 32];
     string_data[..string.len()].copy_from_slice(&string.as_bytes());    
     string_data
 }
 
-#[error]
+fn string_to_array_64<'info>(string: &String) -> [u8; 64] {
+    let mut string_data = [0u8; 64];
+    string_data[..string.len()].copy_from_slice(&string.as_bytes());    
+    string_data
+}
+
+fn string_to_array_512<'info>(string: &String) -> [u8; 512] {
+    let mut string_data = [0u8; 512];
+    string_data[..string.len()].copy_from_slice(&string.as_bytes());    
+    string_data
+}
+
+#[error_code]
 pub enum ErrorCode {
     #[msg("The given owner is not part of this multisig.")]
     InvalidOwner,
@@ -636,18 +728,20 @@ pub enum ErrorCode {
     UnableToDelete,
     #[msg("The given transaction has already been executed.")]
     AlreadyExecuted,
+    #[msg("Transaction proposal has expired.")]
+    AlreadyExpired,
     #[msg("Threshold must be less than or equal to the number of owners.")]
     InvalidThreshold,
-    #[msg("Owners must be unique")]
+    #[msg("Owners must be unique.")]
     UniqueOwners,
-    #[msg("Owner name must have less than 32 bytes")]
+    #[msg("Owner name must have less than 32 bytes.")]
     OwnerNameTooLong,
-    #[msg("Multisig nonce is not valid")]
+    #[msg("Multisig nonce is not valid.")]
     InvalidMultisigNonce,
-    #[msg("Multisig version is not valid")]
+    #[msg("Multisig version is not valid.")]
     InvalidMultisigVersion,
-    #[msg("Multisig owner set secuency number is not valid")]
+    #[msg("Multisig owner set secuency number is not valid.")]
     InvalidOwnerSetSeqNumber,
-    #[msg("Multisig account is not valid")]
+    #[msg("Multisig account is not valid.")]
     InvalidMultisig,
 }
