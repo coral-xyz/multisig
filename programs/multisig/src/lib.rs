@@ -438,20 +438,28 @@ pub struct CreateTransaction<'info> {
 pub struct CancelTransaction<'info> {
     #[account(
         mut,
+        constraint = multisig.key() == transaction.multisig @ ErrorCode::InvalidMultisig
+    )]
+    multisig: Box<Account<'info, MultisigV2>>,
+    #[account(
+        mut,
         close = proposer,
         constraint = transaction.owner_set_seqno != multisig.owner_set_seqno @ ErrorCode::InvalidOwnerSetSeqNumber
     )]
     transaction: Box<Account<'info, Transaction>>,
     #[account(
         mut,
-        constraint = multisig.key() == transaction.multisig @ ErrorCode::InvalidMultisig
+        close = proposer,
+        seeds = [multisig.key().as_ref(), transaction.key().as_ref()],
+        bump
     )]
-    multisig: Box<Account<'info, MultisigV2>>,
+    transaction_detail: Box<Account<'info, TransactionDetail>>,
     #[account(
         mut,
         constraint = proposer.key() == transaction.proposer @ ErrorCode::InvalidOwner
     )]
-    proposer: Signer<'info>
+    proposer: Signer<'info>,
+    system_program: Program<'info, System>
 }
 
 #[derive(Accounts)]
@@ -704,7 +712,7 @@ fn string_to_array_512<'info>(string: &String) -> [u8; 512] {
     string_data
 }
 
-#[error]
+#[error_code]
 pub enum ErrorCode {
     #[msg("The given owner is not part of this multisig.")]
     InvalidOwner,
