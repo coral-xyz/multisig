@@ -79,7 +79,7 @@ pub mod serum_multisig {
         let authority = ctx.accounts.authority.key();
 
         let multisig_signer = Pubkey::create_program_address(
-            &[multisig.key().as_ref(), &[ctx.accounts.multisig.nonce]],
+            &[multisig.key().as_ref(), &[multisig.nonce]],
             ctx.program_id,
         )
         .unwrap();
