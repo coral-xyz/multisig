@@ -47,7 +47,6 @@ pub mod serum_multisig {
 
         let multisig = &mut ctx.accounts.multisig;
         multisig.owners = owners;
-        // multisig.signer = ctx.accounts.signer.key();
         multisig.threshold = threshold;
         multisig.nonce = nonce;
         multisig.owner_set_seqno = 0;
@@ -79,7 +78,13 @@ pub mod serum_multisig {
         // Make sure the signing authority is the owner or multisig
         let authority = ctx.accounts.authority.key();
 
-        if authority != delegate_list.owner && authority != multisig.signer {
+        let multisig_signer = Pubkey::create_program_address(
+            &[multisig.key().as_ref(), &[ctx.accounts.multisig.nonce]],
+            ctx.program_id,
+        )
+        .unwrap();
+
+        if authority != delegate_list.owner && authority != multisig_signer {
             msg!("authority given is not allowed to change this list");
             return Err(ErrorCode::InvalidOwner.into());
         }
@@ -377,7 +382,6 @@ pub struct Multisig {
     pub threshold: u64,
     pub nonce: u8,
     pub owner_set_seqno: u32,
-    pub signer: Pubkey,
 }
 
 /// Account for describing delegates that may sign on an owner's behalf
