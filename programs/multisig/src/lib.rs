@@ -104,8 +104,7 @@ pub mod serum_multisig {
     ) -> Result<()> {
         let owner_key = match ctx.remaining_accounts.get(0) {
             Some(delegate_list_account) => {
-                let delegate_list =
-                    DelegateList::try_deserialize(&mut &delegate_list_account.data.borrow()[..])?;
+                let delegate_list = Account::<DelegateList>::try_from(delegate_list_account)?;
 
                 if delegate_list.multisig != ctx.accounts.multisig.key() {
                     msg!("delegate list isn't for this multisig");
