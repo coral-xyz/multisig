@@ -1,9 +1,13 @@
 set -euxo pipefail
 
-PROGRAM_ID=JPEngBKGXmLUWAXrqZ66zTUzXNBirh5Lkjpjh7dfbXV
+DEFAULT_PROGRAM_ID=JPEngBKGXmLUWAXrqZ66zTUzXNBirh5Lkjpjh7dfbXV
+TEST_PROGRAM_ID=HG4RYfYAwnnXHpWH583VA1yFgBQq3n7y31ks5F2rpe2j
+
 
 main() {
-    echo 'IMPORTANT: this needs to be run from the repo root as test/self-upgrade-test.sh, otherwise it will misbehave'
+    [ -f Anchor.toml ] \
+        || (echo this needs to be run from the repo root as test/self-upgrade-test.sh \
+            && exit 40)
     avm use 0.21.0
 
     ==== deploy old multisig to localnet
@@ -17,12 +21,13 @@ main() {
     local unauthorized=$(keygen unauthorized.json)
 
     ==== create a multisig with two owners and threshold = 2
-    eval $(awk 'END{print "local multisig=" $1 ";", "local signer=" $2}'<<<$(multisig admin new 2 $owner1 $owner2))
-    echo old-multisig $multisig
-    echo signer $signer
+    eval $(awk 'END{print \
+        "local multisig=" $1 ";",\
+        "local signer=" $2
+    }'<<<$(old-multisig admin new 2 $owner1 $owner2))
 
     ==== give upgrade authority for the multisig program to the multisig
-    solana -ul program set-upgrade-authority $PROGRAM_ID --new-upgrade-authority $signer
+    solana -ul program set-upgrade-authority $TEST_PROGRAM_ID --new-upgrade-authority $signer
 
     ==== add a delegate for owner 1
     old-multisig -k $owner1 admin add-delegates $delegate1
@@ -36,10 +41,10 @@ main() {
     old-multisig execute $proposal
 
     ==== verify the upgrade
-    anchor verify $PROGRAM_ID
+    anchor verify $TEST_PROGRAM_ID
 
     ==== create proposal 2 to rollback the multisig program to the old version
-    local proposal2=$(multisig -k $deployer propose program upgrade $PROGRAM_ID test/old_multisig.so)
+    local proposal2=$(multisig -k $deployer propose program upgrade $TEST_PROGRAM_ID test/old_multisig.so)
 
     ==== approve with owner 3
     new-multisig -k $owner3 approve $proposal2
@@ -63,9 +68,12 @@ main() {
     solana program dump JPEngBKGXmLUWAXrqZ66zTUzXNBirh5Lkjpjh7dfbXV dump.so
     assert_eq $(md5sum test/old_multisig.so) $(md5sum dump.so) 'deployed multisig does not match old multisig after rollback'
 
-    ==== clean up
-    # prompt-await 'should we clean up test artifacts? [y/n]' y n
     clean_up
+}
+
+replace-program-id() { local old=$1; local new=$1
+    # sed "s/$old/$new/g" Anchor.toml
+    sed "s/$old/$new/g" programs/multisig/src/lib.rs
 }
 
 keygen() { local path=$1
@@ -75,15 +83,15 @@ keygen() { local path=$1
 }
 
 new-multisig() {
-    target/debug/multisig-cli -ul $@
+    target/debug/multisig-cli -c test/config.toml $@
 }
 
 old-multisig() {
-    target/debug/old-multisig-cli -ul $@
+    test/old-multisig-cli -c test/config.toml $@
 }
 
 start-localnet() {
-    solana-test-validator -r --bpf-program "$PROGRAM_ID" test/old_multisig.so >/dev/null &
+    solana-test-validator -r >/dev/null & #--bpf-program "$PROGRAM_ID" test/old_multisig.so
     sleep 3
     solana -ul logs &
     trap "clean_up && trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
@@ -92,23 +100,7 @@ start-localnet() {
 build-and-propose() { local deployer=$1
     anchor build --verifiable
     solana -ul program write-buffer target/verifiable/multisig.so
-    multisig -k $deployer propose program upgrade $PROGRAM_ID target/verifiable/multisig.so
-}
-
-prompt-await() { local prompt=$1; local confirm=${3:=y}; local exit=${3:=exit}
-    while true; do
-        echo $prompt
-        read inp
-        if [[ "$inp" == "$confirm" ]]; then
-            echo confirmed
-            break
-        fi
-        if [[ "$inp" == "$exit" ]]; then
-            echo exiting
-            exit
-        fi
-        echo "sorry, $confirm is not valid."
-    done
+    multisig -k $deployer propose program upgrade $TEST_PROGRAM_ID target/verifiable/multisig.so
 }
 
 assert_eq() { local expected=$1; local actual=$2, local message=$3
@@ -121,7 +113,7 @@ assert_eq() { local expected=$1; local actual=$2, local message=$3
 }
 
 clean_up() {
-    # prompt-await 'should we clean up test artifacts? [y/n]' y n
+    ==== cleaning up test artifacts
     rm dump.so
     rm owner1.json
     rm owner2.json
@@ -133,9 +125,9 @@ clean_up() {
 ====() {
     set +x
     echo
-    echo '=================================='
+    echo ================================================================================
     echo $@
-    echo '=================================='
+    echo ================================================================================
     set -x
 }
 
