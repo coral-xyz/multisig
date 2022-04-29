@@ -8,7 +8,6 @@ main() {
 
     ==== deploy old multisig to localnet
     start-localnet
-    sleep 2
 
     ==== generate owners
     local owner1=$(keygen owner1.json)
@@ -85,7 +84,8 @@ old-multisig() {
 
 start-localnet() {
     solana-test-validator -r --bpf-program "$PROGRAM_ID" test/old_multisig.so >/dev/null &
-    solana -ul logs > self-upgrade-test-validator.log &
+    sleep 3
+    solana -ul logs &
     trap "clean_up && trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
 }
 
