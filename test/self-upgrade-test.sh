@@ -13,6 +13,7 @@ main() {
     ~# deploy old multisig to localnet
     start-localnet
     solana -ul program deploy $OLD_BINARY --program-id test/program.json
+    sleep 10
     enable-logging
 
     ~# generate owners
