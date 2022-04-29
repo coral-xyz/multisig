@@ -16,6 +16,12 @@ pub struct Opts {
     #[clap(short, long)]
     pub multisig: Option<Pubkey>,
 
+    #[clap(short, long)]
+    pub keypair: Option<String>,
+
+    #[clap(short, long)]
+    pub url: Option<String>,
+
     #[clap(subcommand)]
     pub job: Job,
 }
