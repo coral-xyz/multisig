@@ -28,7 +28,7 @@ main() {
     eval $(awk 'END{print \
         "local multisig=" $1 ";",\
         "local signer=" $2
-    }'<<<$(new-multisig new 2 $owner1 $owner2))
+    }'<<<$(old-multisig new 2 $owner1 $owner2))
     sed -i "s/Hgc8AddQZkySpDxqRomrkg1YdtBxDQsEPJPxWdEvXoaH/$multisig/g"
 
     ~# give upgrade authority for the multisig program to the multisig
