@@ -1,8 +1,14 @@
 set -euxo pipefail
 
+# Instructions:
+# - save build to test the upgrade *from* to old-multisig.so
+# - save build of multisig-cli that is compatible with old-multisig.so to old-multisig-cli
+#   (maybe the current build is backwards compatible?)
+# - create program.json containing the same key that old-multisig.so expects
+# - make sure TEST_PROGRAM_ID is set to the same address as program.json
+
 DEFAULT_PROGRAM_ID=JPEngBKGXmLUWAXrqZ66zTUzXNBirh5Lkjpjh7dfbXV
 TEST_PROGRAM_ID=JPEngBKGXmLUWAXrqZ66zTUzXNBirh5Lkjpjh7dfbXV
-#HG4RYfYAwnnXHpWH583VA1yFgBQq3n7y31ks5F2rpe2j
 OLD_BINARY=test/old_multisig-mainnet-copy.so
 
 main() {
@@ -28,8 +34,7 @@ main() {
     eval $(awk 'END{print \
         "local multisig=" $1 ";",\
         "local signer=" $2
-    }'<<<$(old-multisig new 2 $owner1 $owner2))
-    sed -i "s/Hgc8AddQZkySpDxqRomrkg1YdtBxDQsEPJPxWdEvXoaH/$multisig/g"
+    }'<<<$(old-multisig admin new 2 $owner1 $owner2))
 
     ~# give upgrade authority for the multisig program to the multisig
     solana -ul program set-upgrade-authority $TEST_PROGRAM_ID --new-upgrade-authority $signer
