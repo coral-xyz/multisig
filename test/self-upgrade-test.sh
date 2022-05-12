@@ -1,8 +1,9 @@
 set -euxo pipefail
 
 DEFAULT_PROGRAM_ID=JPEngBKGXmLUWAXrqZ66zTUzXNBirh5Lkjpjh7dfbXV
-TEST_PROGRAM_ID=HG4RYfYAwnnXHpWH583VA1yFgBQq3n7y31ks5F2rpe2j
-OLD_BINARY=test/old_multisig-new-build.so
+TEST_PROGRAM_ID=JPEngBKGXmLUWAXrqZ66zTUzXNBirh5Lkjpjh7dfbXV
+#HG4RYfYAwnnXHpWH583VA1yFgBQq3n7y31ks5F2rpe2j
+OLD_BINARY=test/old_multisig-mainnet-copy.so
 
 main() {
     [ -f Anchor.toml ] \
@@ -27,13 +28,14 @@ main() {
     eval $(awk 'END{print \
         "local multisig=" $1 ";",\
         "local signer=" $2
-    }'<<<$(old-multisig admin new 2 $owner1 $owner2))
+    }'<<<$(new-multisig new 2 $owner1 $owner2))
+    sed -i "s/Hgc8AddQZkySpDxqRomrkg1YdtBxDQsEPJPxWdEvXoaH/$multisig/g"
 
     ~# give upgrade authority for the multisig program to the multisig
     solana -ul program set-upgrade-authority $TEST_PROGRAM_ID --new-upgrade-authority $signer
 
     ~# add a delegate for owner 1
-    old-multisig -k $owner1 admin add-delegates $delegate1
+    old-multisig -k $owner1 add-delegates $delegate1
 
     ~# create proposal 1 to upgrade a verifiable build of the new multisig
     local proposal1=$(build-and-propose $owner1)
@@ -93,8 +95,8 @@ replace-program-id() { local old=$1; local new=$1
 
 keygen() { local path=$1
     solana-keygen new -so $path --no-bip39-passphrase >/dev/null
-    solana -ul -k owner1.json address
-    solana -ul -k owner1.json airdrop 100 >/dev/null
+    solana -ul -k $path address
+    solana -ul -k $path airdrop 100 >/dev/null
 }
 
 new-multisig() {
