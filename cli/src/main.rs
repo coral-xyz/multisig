@@ -5,7 +5,7 @@ use anyhow::Result;
 use clap::Parser;
 use multisig_client::{
     cli::{run_job, Opts},
-    config::{self, MultisigConfig},
+    config::{self, DelegationConfig, MultisigConfig},
 };
 
 fn main() -> Result<()> {
@@ -17,6 +17,9 @@ fn main() -> Result<()> {
     let payer = multisig_client::load_payer(&keypair);
     if let Some(url) = cli_opts.url {
         multisig_config.cluster = url;
+    }
+    if let Some(owner) = cli_opts.delegated_owner {
+        multisig_config.delegation = Some(DelegationConfig { owner });
     }
     let service = multisig_client::load_service(Rc::new(payer), &multisig_config, None)?;
     run_job(cli_opts.job, &service, multisig)

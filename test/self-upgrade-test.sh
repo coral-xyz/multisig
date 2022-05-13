@@ -1,7 +1,7 @@
 set -euxo pipefail
 
 # Instructions:
-# You're likely testing a build from an old build that isn't part of this repo,
+# You're likely testing an upgrade from an old build that isn't part of this commit,
 # so this script can't easily automate switching between branches and getting the right builds etc.
 # You need to provide the old binaries and the key for the old binaries:
 # - save build to test the upgrade *from* to old-multisig.so
@@ -12,7 +12,7 @@ set -euxo pipefail
 
 DEFAULT_PROGRAM_ID=JPEngBKGXmLUWAXrqZ66zTUzXNBirh5Lkjpjh7dfbXV
 TEST_PROGRAM_ID=JPEngBKGXmLUWAXrqZ66zTUzXNBirh5Lkjpjh7dfbXV
-OLD_BINARY=test/old_multisig-mainnet-copy.so
+OLD_BINARY=test/old-multisig.so
 MULTISIG=null
 SIGNER=null
 export RUST_BACKTRACE=1
@@ -31,61 +31,61 @@ main() {
     verify-program $OLD_BINARY init
 
     ~# generate owners
-    local owner1=$(keygen owner1.json)
-    local owner2=$(keygen owner2.json)
-    local owner3=$(keygen owner3.json)
-    local delegate1=$(keygen delegate1.json)
+    local proposer=$(keygen proposer.json)
+    local simple_owner=$(keygen simple_owner.json)
+    local owner_w_delegate=$(keygen owner_w_delegate.json)
+    local delegate=$(keygen delegate.json)
     local unauthorized=$(keygen unauthorized.json)
 
     ~# create a multisig with two owners and threshold = 2
     eval $(awk 'END{print \
         "MULTISIG=" $1 ";",\
         "SIGNER=" $2
-    }'<<<$(test/old-multisig-cli -c test/config.toml admin new 3 $owner1 $owner2 $owner3))
+    }'<<<$(test/old-multisig-cli -c test/config.toml admin new 3 $owner_w_delegate $proposer $simple_owner))
 
     ~# give upgrade authority for the multisig program to the multisig
     solana -ul program set-upgrade-authority $TEST_PROGRAM_ID --new-upgrade-authority $SIGNER
 
-    ~# add a delegate for owner 1
-    old-multisig -k owner1.json admin add-delegates $delegate1
+    ~# add a delegate for owner
+    old-multisig -k owner_w_delegate.json admin add-delegates $delegate
 
     ~# create proposal 1 to upgrade to the new multisig
-    local proposal1=$(build-and-propose owner1.json | tee /dev/tty | awk 'END{print $1}')
+    local proposal1=$(build-and-propose proposer.json | tee /dev/tty | awk 'END{print $1}')
 
-    ~# approve proposal 1 with owners 2 and 3 and execute
-    old-multisig -k owner2.json admin approve $proposal1
-    old-multisig -k owner3.json admin approve $proposal1
-    old-multisig -k owner1.json admin execute $proposal1
+    ~# approve proposal 1 with owners and execute
+    old-multisig -k owner_w_delegate.json admin approve $proposal1
+    old-multisig -k simple_owner.json admin approve $proposal1
+    old-multisig admin execute $proposal1
 
     ~# verify the upgrade
     verify-program target/deploy/serum_multisig.so upgrade
 
     ~# create proposal 2 to rollback the multisig program to the old version
-    local proposal2=$(propose-build new-multisig owner2.json $OLD_BINARY)
+    local proposal2=$(propose-build new-multisig proposer.json $OLD_BINARY)
     enable-logging
 
-    ~# approve with owner 3
-    new-multisig -k owner3.json admin approve $proposal2
+    ~# approve with one owner
+    new-multisig -k simple_owner.json admin approve $proposal2
 
     ~# execution is not allowed
-    new-multisig -k owner1.json admin execute $proposal2 && exit 33 || true
+    new-multisig admin execute $proposal2 && exit 33 ||:
 
     ~# fail to vote on the proposal using invalid wallet
-    new-multisig -k unauthorized.json admin approve $proposal2 && exit 33 || true
+    new-multisig -k unauthorized.json admin approve $proposal2 && exit 33 ||:
 
     ~# execution is not allowed
-    new-multisig -k owner1.json admin execute $proposal2 && exit 33 || true
+    new-multisig admin execute $proposal2 && exit 33 ||:
 
-    ~# approve with delegate for owner 1
-    new-multisig -k delegate1.json admin approve $proposal2
+    ~# approve with delegate
+    new-multisig -k delegate.json --delegated-owner $owner_w_delegate admin approve $proposal2
     
     ~# execute the proposal
-    new-multisig -k owner1.json admin execute $proposal2
+    new-multisig admin execute $proposal2
 
     ~# verify the upgrade
     verify-program $OLD_BINARY rollback
 
-    clean_up
+    # clean_up
 }
 
 
@@ -116,7 +116,7 @@ old-multisig() {
 
 start-localnet() {
     solana-test-validator -r >/dev/null &
-    trap "clean_up && trap - SIGTERM && kill -9 -- -$$" SIGINT SIGTERM EXIT
+    trap "(clean_up ||:); trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
     sleep 5
 }
 
@@ -158,16 +158,16 @@ assert_eq() { local expected=$1; local actual=$2; local message=$3
 
 clean_up() {
     ~# cleaning up test artifacts
-    rm dump.so
-    rm dump-verifiable.so
-    rm owner1.json
-    rm owner2.json
-    rm owner3.json
-    rm delegate1.json
-    rm unauthorized.json
+    rm dump.so ||:
+    rm dump-verifiable.so ||:
+    rm owner_w_delegate.json ||:
+    rm proposer.json ||:
+    rm simple_owner.json ||:
+    rm delegate.json ||:
+    rm unauthorized.json ||:
 }
 
-~#() { # recognized as a comment by vscode but a command by bash -- perfect!
+~#() { # recognized as a comment by vscode but a command by bash -- perfect
     set +x
     echo
     echo ================================================================================

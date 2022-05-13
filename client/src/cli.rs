@@ -16,6 +16,9 @@ pub struct Opts {
     #[clap(short, long)]
     pub multisig: Option<Pubkey>,
 
+    #[clap(long)]
+    pub delegated_owner: Option<Pubkey>,
+
     #[clap(short, long)]
     pub keypair: Option<String>,
 
