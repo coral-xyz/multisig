@@ -1,16 +1,21 @@
 pub mod cli;
+pub mod compat;
 pub mod config;
 pub mod gateway;
 pub mod instruction_data;
 pub mod propose;
 pub mod service;
-pub mod compat;
 
 use std::rc::Rc;
 
 pub use anchor_client;
 
-use anchor_client::solana_sdk::{signer::{Signer, SignerError}, signature::Signature, pubkey::Pubkey};
+use anchor_client::solana_sdk::{
+    commitment_config::CommitmentConfig,
+    pubkey::Pubkey,
+    signature::Signature,
+    signer::{Signer, SignerError},
+};
 use anyhow::Result;
 
 use clap2::ArgMatches;
@@ -26,7 +31,7 @@ pub fn load_payer(path: &str) -> LazilyFailingSigner {
     let default_signer = DefaultSigner::new("keypair".to_string(), path);
     let arg_matches = ArgMatches::default();
     LazilyFailingSigner {
-        signer: default_signer.signer_from_path(&arg_matches, &mut wallet_manager)
+        signer: default_signer.signer_from_path(&arg_matches, &mut wallet_manager),
     }
 }
 
@@ -36,7 +41,13 @@ pub fn load_service<'a>(
     inspector: Option<Box<dyn ProposalInspector>>,
 ) -> Result<MultisigService<'a>> {
     let cluster = config.cluster();
-    let connection = anchor_client::Client::new(cluster.clone(), payer.clone());
+    let connection = anchor_client::Client::new_with_options(
+        cluster.clone(),
+        payer.clone(),
+        CommitmentConfig {
+            commitment: config.commitment,
+        },
+    );
     let client = connection.program(config.program_id);
 
     Ok(MultisigService {
@@ -46,14 +57,14 @@ pub fn load_service<'a>(
             payer,
             config,
         },
-        inspector
+        inspector,
     })
 }
 
 /// This allows you to instantiate a client with a signer even if there is no signer available
 /// That way, you can execute client operations that don't actually use the signer (such as reads)
 pub struct LazilyFailingSigner {
-    pub signer: Result<Box<dyn Signer>, Box<dyn std::error::Error>>
+    pub signer: Result<Box<dyn Signer>, Box<dyn std::error::Error>>,
 }
 
 impl Signer for LazilyFailingSigner {

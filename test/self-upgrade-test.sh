@@ -26,7 +26,6 @@ main() {
     ~# deploy old multisig to localnet
     start-localnet
     solana -ul program deploy $OLD_BINARY --program-id test/program.json
-    sleep 10
     enable-logging
     verify-program $OLD_BINARY init
 
@@ -84,8 +83,6 @@ main() {
 
     ~# verify the upgrade
     verify-program $OLD_BINARY rollback
-
-    # clean_up
 }
 
 
@@ -117,7 +114,10 @@ old-multisig() {
 start-localnet() {
     solana-test-validator -r >/dev/null &
     trap "(clean_up ||:); trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT
-    sleep 5
+    set +x
+    echo 'waiting for local validator to be connectable...'
+    while ! solana -ul ping -c1 --commitment processed 2>/dev/null; do sleep 0.1; done
+    set -x
 }
 
 build-and-propose() { local deployer=$1

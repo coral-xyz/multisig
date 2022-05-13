@@ -1,6 +1,6 @@
 use std::io::ErrorKind;
 
-use anchor_client::{solana_sdk::pubkey::Pubkey, Cluster};
+use anchor_client::{solana_sdk::{pubkey::Pubkey, commitment_config::CommitmentLevel}, Cluster};
 use anyhow::Result;
 use serde::de::DeserializeOwned;
 use serde_derive::Deserialize;
@@ -44,6 +44,9 @@ pub struct MultisigConfig {
     pub multisig: Option<Pubkey>,
 
     pub delegation: Option<DelegationConfig>,
+
+    #[serde(default)]
+    pub commitment: CommitmentLevel,
 }
 
 impl MultisigConfig {

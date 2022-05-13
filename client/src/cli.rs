@@ -29,6 +29,9 @@ pub struct Opts {
     pub job: Job,
 }
 
+// Admin and Propose are split up so that a custom multisig cli can be written
+// with its own Proposal impl, meanwhile it can reuse Admin(MultisigCommand) in
+// its own `Job` definition. See jet-multisig-cli for a prototype.
 nested_subcommands!(
     Job {
         /// Anything other than submitting a proposal
