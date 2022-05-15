@@ -3,7 +3,7 @@ const assert = require("assert");
 
 describe("multisig", () => {
   // Configure the client to use the local cluster.
-  anchor.setProvider(anchor.Provider.env());
+  anchor.setProvider(anchor.getProvider());
 
   const program = anchor.workspace.SerumMultisig;
 
@@ -163,8 +163,9 @@ describe("multisig", () => {
       });
       assert.fail();
     } catch (err) {
-      assert.equal(err.code, 6008);
-      assert.equal(err.msg, "Owners must be unique");
+      const error = err.error;
+      assert.strictEqual(error.errorCode.number, 6008);
+      assert.strictEqual(error.errorMessage, "Owners must be unique");
     }
   });
 });
