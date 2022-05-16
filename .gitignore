@@ -3,6 +3,6 @@ target
 .idea
 node_modules
 test-ledger
-test/program.json
-test/old-multisig-cli
-test/old-multisig.so
+program.json
+old-multisig-cli
+old-multisig.so
