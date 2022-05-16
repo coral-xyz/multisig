@@ -1,18 +1,26 @@
 set -euxo pipefail
 
-# Instructions:
 # You're likely testing an upgrade from an old build that isn't part of this commit,
-# so this script can't easily automate switching between branches and getting the right builds etc.
-# You need to provide the old binaries and the key for the old binaries:
-# - save build to test the upgrade *from* to old-multisig.so
-# - save build of multisig-cli that is compatible with old-multisig.so to old-multisig-cli
-#   (maybe the current build is backwards compatible?)
-# - create program.json containing the same key that old-multisig.so expects
-# - make sure TEST_PROGRAM_ID is set to the same address as program.json
+# so the test script can't automatically generate old builds, keys, etc.
+# You need to provide the old data:
 
-DEFAULT_PROGRAM_ID=JPEngBKGXmLUWAXrqZ66zTUzXNBirh5Lkjpjh7dfbXV
-TEST_PROGRAM_ID=JPEngBKGXmLUWAXrqZ66zTUzXNBirh5Lkjpjh7dfbXV
+# build to test the upgrade *from*
 OLD_BINARY=test/old-multisig.so
+
+# build of cli that is compatible with old-multisig.so
+# (maybe the current build is backwards compatible?)
+OLD_CLI=test/old-multisig-cli
+
+# the private key for the program-id that old-multisig.so was built with
+PROGRAM_PRIVATE_KEY=test/program.json
+
+# the pubkey for program.json
+TEST_PROGRAM_ID=JPEngBKGXmLUWAXrqZ66zTUzXNBirh5Lkjpjh7dfbXV
+
+# The program ID used in the current source code from this commit
+DEFAULT_PROGRAM_ID=JPEngBKGXmLUWAXrqZ66zTUzXNBirh5Lkjpjh7dfbXV
+
+# Don't worry about these nulls, they're set by the test:
 MULTISIG=null
 SIGNER=null
 export RUST_BACKTRACE=1
@@ -25,9 +33,9 @@ main() {
 
     ~# deploy old multisig to localnet
     start-localnet
-    solana -ul program deploy $OLD_BINARY --program-id test/program.json
+    solana -ul program deploy "$OLD_BINARY" --program-id "$PROGRAM_PRIVATE_KEY"
     enable-logging
-    verify-program $OLD_BINARY init
+    verify-program "$OLD_BINARY" init
 
     ~# generate owners
     local proposer=$(keygen proposer.json)
@@ -40,10 +48,10 @@ main() {
     eval $(awk 'END{print \
         "MULTISIG=" $1 ";",\
         "SIGNER=" $2
-    }'<<<$(test/old-multisig-cli -c test/config.toml admin new 3 $owner_w_delegate $proposer $simple_owner))
+    }'<<<$("$OLD_CLI" -c test/config.toml admin new 3 $owner_w_delegate $proposer $simple_owner))
 
     ~# give upgrade authority for the multisig program to the multisig
-    solana -ul program set-upgrade-authority $TEST_PROGRAM_ID --new-upgrade-authority $SIGNER
+    solana -ul program --commitment processed set-upgrade-authority $TEST_PROGRAM_ID --new-upgrade-authority $SIGNER
 
     ~# add a delegate for owner
     old-multisig -k owner_w_delegate.json admin add-delegates $delegate
@@ -60,7 +68,7 @@ main() {
     verify-program target/deploy/serum_multisig.so upgrade
 
     ~# create proposal 2 to rollback the multisig program to the old version
-    local proposal2=$(propose-build new-multisig proposer.json $OLD_BINARY)
+    local proposal2=$(propose-build new-multisig proposer.json "$OLD_BINARY")
     enable-logging
 
     ~# approve with one owner
@@ -82,7 +90,9 @@ main() {
     new-multisig admin execute $proposal2
 
     ~# verify the upgrade
-    verify-program $OLD_BINARY rollback
+    verify-program "$OLD_BINARY" rollback
+
+    ~# test passed
 }
 
 
@@ -108,7 +118,7 @@ new-multisig() {
 }
 
 old-multisig() {
-    test/old-multisig-cli -m $MULTISIG -c test/config.toml $@
+    "$OLD_CLI" -m $MULTISIG -c test/config.toml $@
 }
 
 start-localnet() {
