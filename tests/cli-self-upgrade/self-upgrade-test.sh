@@ -1,17 +1,26 @@
 set -euxo pipefail
 
+# This test can be executed before using multisig to upgrade itself, so the upgrader
+# can be confident that the upgrade will not break multisig.
+# Steps in this test:
+# 1. Deploy an old version of multisig and give upgrade authority to a multisig
+# 2. Use the multisig to upgrade the program to the current version
+# 3. Use the upgraded multisig to rollback the program to the previous version
+
 # You're likely testing an upgrade from an old build that isn't part of this commit,
 # so the test script can't automatically generate old builds, keys, etc.
 # You need to provide the old data:
 
 # build to test the upgrade *from*
+# example: solana -um program dump JPEngBKGXmLUWAXrqZ66zTUzXNBirh5Lkjpjh7dfbXV test/old-multisig.so
 OLD_BINARY=test/old-multisig.so
 
 # build of cli that is compatible with old-multisig.so
-# (maybe the current build is backwards compatible?)
+# maybe the current build is backwards compatible?
 OLD_CLI=test/old-multisig-cli
 
 # the private key for the program-id that old-multisig.so was built with
+# for mainnet, check 1password
 PROGRAM_PRIVATE_KEY=test/program.json
 
 # the pubkey for program.json
