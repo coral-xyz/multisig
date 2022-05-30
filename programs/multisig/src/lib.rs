@@ -120,6 +120,7 @@ pub mod mean_multisig {
 
         multisig.owners = multisig_owners;
         multisig.owner_set_seqno += 1;
+        multisig.pending_txs = 0;
 
         Ok(())
     }
@@ -492,6 +493,7 @@ pub struct ExecuteTransaction<'info> {
         constraint = multisig.owner_set_seqno == transaction.owner_set_seqno @ ErrorCode::InvalidOwnerSetSeqNumber
     )]
     multisig: Box<Account<'info, MultisigV2>>,
+    /// CHECK: `doc comment explaining why no checks through types are necessary`
     #[account(
         seeds = [multisig.key().as_ref()],
         bump = multisig.nonce,
@@ -524,11 +526,13 @@ pub struct ExecuteTransactionPda<'info> {
         constraint = multisig.owner_set_seqno == transaction.owner_set_seqno @ ErrorCode::InvalidOwnerSetSeqNumber
     )]
     multisig: Box<Account<'info, MultisigV2>>,
+    /// CHECK: `doc comment explaining why no checks through types are necessary`
     #[account(
         seeds = [multisig.key().as_ref()],
         bump = multisig.nonce,
     )]
     multisig_signer: UncheckedAccount<'info>,
+    /// CHECK: `doc comment explaining why no checks through types are necessary`
     #[account(
         mut,
         seeds = [multisig.key().as_ref(), &pda_timestamp.to_le_bytes()],
