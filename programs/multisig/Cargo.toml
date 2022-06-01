@@ -1,6 +1,6 @@
 [package]
 name = "mean-multisig"
-version = "0.12.1"
+version = "1.12.1"
 description = "Created with Anchor"
 edition = "2018"
 license = "Apache-2.0"

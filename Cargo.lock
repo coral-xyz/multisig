@@ -706,7 +706,7 @@ dependencies = [
 
 [[package]]
 name = "mean-multisig"
-version = "0.12.1"
+version = "1.12.1"
 dependencies = [
  "anchor-lang",
  "solana-program",
