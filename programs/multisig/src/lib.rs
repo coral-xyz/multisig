@@ -521,6 +521,7 @@ pub struct ExecuteTransaction<'info> {
     pda_bump: u8
 )]
 pub struct ExecuteTransactionPda<'info> {
+    /// CHECK: multisig_signer is a PDA program signer. Data is never read or written to
     #[account(
         mut,
         constraint = multisig.owner_set_seqno == transaction.owner_set_seqno @ ErrorCode::InvalidOwnerSetSeqNumber
