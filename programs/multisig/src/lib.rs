@@ -469,8 +469,7 @@ pub struct CancelTransaction<'info> {
     multisig: Box<Account<'info, MultisigV2>>,
     #[account(
         mut,
-        close = proposer,
-        // constraint = transaction.owner_set_seqno != multisig.owner_set_seqno @ ErrorCode::InvalidOwnerSetSeqNumber
+        close = proposer
     )]
     transaction: Box<Account<'info, Transaction>>,
     #[account(
@@ -495,7 +494,11 @@ pub struct Approve<'info> {
         constraint = multisig.owner_set_seqno == transaction.owner_set_seqno @ ErrorCode::InvalidOwnerSetSeqNumber
     )]
     multisig: Box<Account<'info, MultisigV2>>,
-    #[account(mut, has_one = multisig)]
+    #[account(
+        mut, 
+        has_one = multisig,
+        constraint = transaction.executed_on == 0 @ ErrorCode::AlreadyExecuted
+    )]
     transaction: Box<Account<'info, Transaction>>,
     #[account(
         init_if_needed,
@@ -518,7 +521,11 @@ pub struct Reject<'info> {
         constraint = multisig.owner_set_seqno == transaction.owner_set_seqno @ ErrorCode::InvalidOwnerSetSeqNumber
     )]
     multisig: Box<Account<'info, MultisigV2>>,
-    #[account(mut, has_one = multisig)]
+    #[account(
+        mut, 
+        has_one = multisig,
+        constraint = transaction.executed_on == 0 @ ErrorCode::AlreadyExecuted
+    )]
     transaction: Box<Account<'info, Transaction>>,
     #[account(
         init_if_needed,
