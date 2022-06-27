@@ -149,9 +149,9 @@ pub mod mean_multisig {
             .position(|a| a.address.eq(&ctx.accounts.proposer.key()))
             .ok_or(ErrorCode::InvalidOwner)?;
 
-        let mut signers = Vec::new();
-        signers.resize(ctx.accounts.multisig.owners.len(), false);
-        signers[owner_index] = true;
+        let mut signers = Vec::<u8>::new();
+        signers.resize(ctx.accounts.multisig.owners.len(), 0u8);
+        signers[owner_index] = 1u8;
 
         let tx = &mut ctx.accounts.transaction;
         let clock = Clock::get()?;
@@ -238,7 +238,32 @@ pub mod mean_multisig {
             return Err(ErrorCode::AlreadyExpired.into());
         }
 
-        ctx.accounts.transaction.signers[owner_index] = true;
+        ctx.accounts.transaction.signers[owner_index] = 1u8;
+
+        Ok(())
+    }
+
+    /// Rejects a transaction on behalf of an owner of the multisig.
+    pub fn reject(ctx: Context<Reject>) -> Result<()> {
+
+        let owner_index = ctx
+            .accounts
+            .multisig
+            .owners
+            .iter()
+            .position(|a| a.address.eq(&ctx.accounts.owner.key))
+            .ok_or(ErrorCode::InvalidOwner)?;
+
+        // Transaction has expired already?
+        let now = Clock::get()?.unix_timestamp as u64;
+
+        if ctx.accounts.transaction_detail.expiration_date > 0 && 
+           ctx.accounts.transaction_detail.expiration_date < now 
+        {
+            return Err(ErrorCode::AlreadyExpired.into());
+        }
+
+        ctx.accounts.transaction.signers[owner_index] = 2u8;
 
         Ok(())
     }
@@ -266,7 +291,7 @@ pub mod mean_multisig {
             .transaction
             .signers
             .iter()
-            .filter(|&did_sign| *did_sign)
+            .filter(|&did_sign| *did_sign == 1)
             .count() as u64;
 
         if sig_count < ctx.accounts.multisig.threshold {
@@ -336,7 +361,7 @@ pub mod mean_multisig {
             .transaction
             .signers
             .iter()
-            .filter(|&did_sign| *did_sign)
+            .filter(|&did_sign| *did_sign == 1)
             .count() as u64;
 
         if sig_count < ctx.accounts.multisig.threshold {
@@ -444,8 +469,7 @@ pub struct CancelTransaction<'info> {
     multisig: Box<Account<'info, MultisigV2>>,
     #[account(
         mut,
-        close = proposer,
-        constraint = transaction.owner_set_seqno != multisig.owner_set_seqno @ ErrorCode::InvalidOwnerSetSeqNumber
+        close = proposer
     )]
     transaction: Box<Account<'info, Transaction>>,
     #[account(
@@ -470,7 +494,38 @@ pub struct Approve<'info> {
         constraint = multisig.owner_set_seqno == transaction.owner_set_seqno @ ErrorCode::InvalidOwnerSetSeqNumber
     )]
     multisig: Box<Account<'info, MultisigV2>>,
-    #[account(mut, has_one = multisig)]
+    #[account(
+        mut, 
+        has_one = multisig,
+        constraint = transaction.executed_on == 0 @ ErrorCode::AlreadyExecuted
+    )]
+    transaction: Box<Account<'info, Transaction>>,
+    #[account(
+        init_if_needed,
+        payer = owner,
+        seeds = [multisig.key().as_ref(), transaction.key().as_ref()],
+        bump,
+        space = 8 + 584 // discriminator + account size
+    )]
+    transaction_detail: Box<Account<'info, TransactionDetail>>,
+    // One of the multisig owners. Checked in the handler.
+    #[account(mut)]
+    owner: Signer<'info>,
+    system_program: Program<'info, System>
+}
+
+#[derive(Accounts)]
+pub struct Reject<'info> {
+    #[account(
+        mut, 
+        constraint = multisig.owner_set_seqno == transaction.owner_set_seqno @ ErrorCode::InvalidOwnerSetSeqNumber
+    )]
+    multisig: Box<Account<'info, MultisigV2>>,
+    #[account(
+        mut, 
+        has_one = multisig,
+        constraint = transaction.executed_on == 0 @ ErrorCode::AlreadyExecuted
+    )]
     transaction: Box<Account<'info, Transaction>>,
     #[account(
         init_if_needed,
@@ -598,7 +653,7 @@ pub struct Transaction {
     /// Instruction data for the transaction.
     pub data: Vec<u8>,
     /// signers[index] is true if multisig.owners[index] signed the transaction.
-    pub signers: Vec<bool>,
+    pub signers: Vec<u8>,
     /// Owner set sequence number.
     pub owner_set_seqno: u32,
     /// Created blocktime 
@@ -748,5 +803,5 @@ pub enum ErrorCode {
     #[msg("Multisig owner set secuency number is not valid.")]
     InvalidOwnerSetSeqNumber,
     #[msg("Multisig account is not valid.")]
-    InvalidMultisig,
+    InvalidMultisig
 }
