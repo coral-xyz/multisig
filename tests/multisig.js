@@ -64,7 +64,7 @@ describe("multisig", () => {
 
     const transaction = anchor.web3.Keypair.generate();
     const txSize = 1000; // Big enough, cuz I'm lazy.
-    await program.rpc.createTransaction(pid, accounts, data, {
+    await program.rpc.createTransaction(pid, accounts, data, null, {
       accounts: {
         multisig: multisig.publicKey,
         transaction: transaction.publicKey,
@@ -89,6 +89,7 @@ describe("multisig", () => {
     assert.ok(txAccount.multisig.equals(multisig.publicKey));
     assert.deepStrictEqual(txAccount.didExecute, false);
     assert.ok(txAccount.ownerSetSeqno === 0);
+    assert.deepStrictEqual(txAccount.successor, null);
 
     // Other owner approves transactoin.
     await program.rpc.approve({
