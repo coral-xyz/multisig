@@ -76,7 +76,7 @@ pub mod mean_multisig {
         // Fee
         let pay_fee_ix = solana_program::system_instruction::transfer(
             ctx.accounts.proposer.key, 
-            ctx.accounts.multisig_ops_account.key, 
+            ctx.accounts.multisig_ops_account.key,
             MULTISIG_FEE
         );
 
@@ -118,9 +118,11 @@ pub mod mean_multisig {
             };
         }
 
-        multisig.owners = multisig_owners;
-        multisig.owner_set_seqno += 1;
+        multisig.owners = multisig_owners;        
         multisig.pending_txs = 0;
+        multisig.owner_set_seqno = multisig.owner_set_seqno
+            .checked_add(1)
+            .ok_or(ErrorCode::Overflow)?;
 
         Ok(())
     }
@@ -188,7 +190,7 @@ pub mod mean_multisig {
         // Fee
         let pay_fee_ix = solana_program::system_instruction::transfer(
             ctx.accounts.proposer.key, 
-            ctx.accounts.multisig_ops_account.key, 
+            ctx.accounts.multisig_ops_account.key,
             MULTISIG_FEE
         );
 
@@ -334,12 +336,7 @@ pub mod mean_multisig {
     }
 
     /// Executes the given transaction if threshold owners have signed it.
-    pub fn execute_transaction_pda(
-        ctx: Context<ExecuteTransactionPda>,
-        pda_timestamp: u64,
-        pda_bump: u8
-
-    ) -> Result<()> {
+    pub fn execute_transaction_pda(ctx: Context<ExecuteTransactionPda>) -> Result<()> {
 
         // Has this been executed already?
         if ctx.accounts.transaction.executed_on > 0 {
@@ -391,8 +388,8 @@ pub mod mean_multisig {
 
         let pda_seeds = &[
             ctx.accounts.multisig.to_account_info().key.as_ref(),
-            &pda_timestamp.to_le_bytes(),
-            &[pda_bump],
+            &ctx.accounts.transaction.pda_timestamp.to_le_bytes(),
+            &[ctx.accounts.transaction.pda_bump],
         ];
 
         let signers = &[&transaction_seeds[..], &pda_seeds[..]];
@@ -410,6 +407,33 @@ pub mod mean_multisig {
 
         Ok(())
     }
+
+    pub fn init_settings(ctx: Context<InitSettings>) -> Result<()> {
+
+        ctx.accounts.settings.version = 1u8;
+        ctx.accounts.settings.bump = ctx.bumps["settings"];
+        ctx.accounts.settings.authority = ctx.accounts.authority.key();
+        ctx.accounts.settings.ops_account = "3TD6SWY9M1mLY2kZWJNavPLhwXvcRsWdnZLRaMzERJBw".parse().unwrap();
+        ctx.accounts.settings.create_multisig_fee = 20_000_000;
+        ctx.accounts.settings.create_transaction_fee = 20_000_000;
+
+        Ok(())
+    }
+
+    // pub fn update_settings(
+    //     ctx: Context<UpdateSettings>, 
+    //     ops_account: Pubkey, 
+    //     create_multisig_fee: u64,
+    //     create_transaction_fee: u64
+
+    // ) -> Result<()> {
+
+    //     ctx.accounts.settings.ops_account = ops_account;
+    //     ctx.accounts.settings.create_multisig_fee = create_multisig_fee;
+    //     ctx.accounts.settings.create_transaction_fee = create_transaction_fee;
+
+    //     Ok(())
+    // }
 }
 
 #[derive(Accounts)]
@@ -571,10 +595,6 @@ pub struct ExecuteTransaction<'info> {
 }
 
 #[derive(Accounts)]
-#[instruction(
-    pda_timestamp: u64,
-    pda_bump: u8
-)]
 pub struct ExecuteTransactionPda<'info> {
     /// CHECK: multisig_signer is a PDA program signer. Data is never read or written to
     #[account(
@@ -591,8 +611,8 @@ pub struct ExecuteTransactionPda<'info> {
     /// CHECK: `doc comment explaining why no checks through types are necessary`
     #[account(
         mut,
-        seeds = [multisig.key().as_ref(), &pda_timestamp.to_le_bytes()],
-        bump = pda_bump,
+        seeds = [multisig.key().as_ref(), &transaction.pda_timestamp.to_le_bytes()],
+        bump = transaction.pda_bump,
     )]
     pda_account: UncheckedAccount<'info>,
     #[account(mut, has_one = multisig)]
@@ -611,16 +631,53 @@ pub struct ExecuteTransactionPda<'info> {
     system_program: Program<'info, System>
 }
 
-#[account]
-pub struct Multisig {
-    pub owners: Vec<Pubkey>,
-    pub threshold: u64,
-    pub nonce: u8,
-    pub owner_set_seqno: u32,
-    pub label: String,
-    pub created_on: u64,
-    pub pending_txs: u64
+#[derive(Accounts)]
+pub struct InitSettings<'info> {
+    #[account(mut)]
+    payer: Signer<'info>,
+    #[account()]
+    authority: Signer<'info>,
+    #[account(
+        init,
+        payer=payer,
+        seeds = [b"settings"],
+        bump,
+        space = 200
+    )]
+    settings: Account<'info, Settings>,
+    #[account(constraint = program.programdata_address()? == Some(program_data.key()))]
+    program: Program<'info, crate::program::MeanMultisig>,
+    #[account(constraint = program_data.upgrade_authority_address == Some(authority.key()))]
+    program_data: Account<'info, ProgramData>,
+    system_program: Program<'info, System>
 }
+
+// #[derive(Accounts)]
+// pub struct UpdateSettings<'info> {
+//     #[account()]
+//     authority: Signer<'info>,
+//     #[account(
+//         mut,
+//         seeds = [b"settings"],
+//         bump = settings.bump
+//     )]
+//     settings: Account<'info, Settings>,
+//     #[account(constraint = program.programdata_address()? == Some(program_data.key()))]
+//     program: Program<'info, crate::program::MeanMultisig>,
+//     #[account(constraint = program_data.upgrade_authority_address == Some(authority.key()))]
+//     program_data: Account<'info, ProgramData>,
+// }
+
+// #[account]
+// pub struct Multisig {
+//     pub owners: Vec<Pubkey>,
+//     pub threshold: u64,
+//     pub nonce: u8,
+//     pub owner_set_seqno: u32,
+//     pub label: String,
+//     pub created_on: u64,
+//     pub pending_txs: u64
+// }
 
 #[account]
 pub struct MultisigV2 {
@@ -683,8 +740,24 @@ pub struct TransactionDetail {
     pub expiration_date: u64
 }
 
-/// Owner parameter passed on create and edit multisig
 #[account]
+pub struct Settings {
+    /// Account version
+    pub version: u8,
+    /// PDA bump
+    pub bump: u8,
+    /// Account authority
+    pub authority: Pubkey,
+    /// Fees account
+    pub ops_account: Pubkey,
+    /// Fee amount in lamports
+    pub create_multisig_fee: u64,
+    /// Fee amount in lamports
+    pub create_transaction_fee: u64,
+}
+
+/// Owner parameter passed on create and edit multisig
+#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
 pub struct Owner {
     pub address: Pubkey,
     pub name: String
