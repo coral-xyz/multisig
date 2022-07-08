@@ -23,12 +23,6 @@ use std::ops::Deref;
 
 declare_id!("FF7U7Vj1PpBkTPau7frwLLrUHrjkxTQLsH7U5K3T3B3j");
 
-pub const MULTISIG_FEE: u64 = 20_000_000;
-
-pub mod mean_multisig_ops_account {
-    solana_program::declare_id!("3TD6SWY9M1mLY2kZWJNavPLhwXvcRsWdnZLRaMzERJBw");
-}
-
 #[program]
 pub mod mean_multisig {
 
@@ -76,15 +70,15 @@ pub mod mean_multisig {
         // Fee
         let pay_fee_ix = solana_program::system_instruction::transfer(
             ctx.accounts.proposer.key, 
-            ctx.accounts.multisig_ops_account.key,
-            MULTISIG_FEE
+            ctx.accounts.ops_account.key,
+            ctx.accounts.settings.create_multisig_fee
         );
 
         solana_program::program::invoke(
             &pay_fee_ix,
             &[
                 ctx.accounts.proposer.to_account_info(), 
-                ctx.accounts.multisig_ops_account.to_account_info(), 
+                ctx.accounts.ops_account.to_account_info(), 
                 ctx.accounts.system_program.to_account_info()
             ]
         )?;
@@ -190,15 +184,15 @@ pub mod mean_multisig {
         // Fee
         let pay_fee_ix = solana_program::system_instruction::transfer(
             ctx.accounts.proposer.key, 
-            ctx.accounts.multisig_ops_account.key,
-            MULTISIG_FEE
+            ctx.accounts.ops_account.key,
+            ctx.accounts.settings.create_transaction_fee
         );
 
         solana_program::program::invoke(
             &pay_fee_ix,
             &[
                 ctx.accounts.proposer.to_account_info(), 
-                ctx.accounts.multisig_ops_account.to_account_info(), 
+                ctx.accounts.ops_account.to_account_info(), 
                 ctx.accounts.system_program.to_account_info()
             ]
         )?;
@@ -408,32 +402,20 @@ pub mod mean_multisig {
         Ok(())
     }
 
-    pub fn init_settings(ctx: Context<InitSettings>) -> Result<()> {
+    pub fn update_settings(
+        ctx: Context<UpdateSettings>, 
+        ops_account: Pubkey, 
+        create_multisig_fee: u64,
+        create_transaction_fee: u64,
 
-        ctx.accounts.settings.version = 1u8;
-        ctx.accounts.settings.bump = ctx.bumps["settings"];
-        ctx.accounts.settings.authority = ctx.accounts.authority.key();
-        ctx.accounts.settings.ops_account = "3TD6SWY9M1mLY2kZWJNavPLhwXvcRsWdnZLRaMzERJBw".parse().unwrap();
-        ctx.accounts.settings.create_multisig_fee = 20_000_000;
-        ctx.accounts.settings.create_transaction_fee = 20_000_000;
+    ) -> Result<()> {
+
+        ctx.accounts.settings.ops_account = ops_account;
+        ctx.accounts.settings.create_multisig_fee = create_multisig_fee;
+        ctx.accounts.settings.create_transaction_fee = create_transaction_fee;
 
         Ok(())
     }
-
-    // pub fn update_settings(
-    //     ctx: Context<UpdateSettings>, 
-    //     ops_account: Pubkey, 
-    //     create_multisig_fee: u64,
-    //     create_transaction_fee: u64
-
-    // ) -> Result<()> {
-
-    //     ctx.accounts.settings.ops_account = ops_account;
-    //     ctx.accounts.settings.create_multisig_fee = create_multisig_fee;
-    //     ctx.accounts.settings.create_transaction_fee = create_transaction_fee;
-
-    //     Ok(())
-    // }
 }
 
 #[derive(Accounts)]
@@ -446,8 +428,17 @@ pub struct CreateMultisig<'info> {
         space = 8 + 640 + 1 + 1 + 32 + 4 + 8 + 8 + 8, // 710
     )]
     multisig: Box<Account<'info, MultisigV2>>,
-    #[account(mut, address = mean_multisig_ops_account::ID)]
-    multisig_ops_account: SystemAccount<'info>,
+    #[account(
+        mut, 
+        address = settings.ops_account
+    )]
+    ops_account: SystemAccount<'info>,
+    #[account(
+        mut,
+        seeds = [b"settings"],
+        bump = settings.bump
+    )]
+    settings: Box<Account<'info, Settings>>,
     system_program: Program<'info, System>
 }
 
@@ -479,8 +470,17 @@ pub struct CreateTransaction<'info> {
     // One of the owners. Checked in the handler.
     #[account(mut)]
     proposer: Signer<'info>,
-    #[account(mut, address = mean_multisig_ops_account::ID)]
-    multisig_ops_account: SystemAccount<'info>,
+    #[account(
+        mut, 
+        address = settings.ops_account
+    )]
+    ops_account: SystemAccount<'info>,
+    #[account(
+        mut,
+        seeds = [b"settings"],
+        bump = settings.bump
+    )]
+    settings: Box<Account<'info, Settings>>,
     system_program: Program<'info, System>
 }
 
@@ -632,41 +632,20 @@ pub struct ExecuteTransactionPda<'info> {
 }
 
 #[derive(Accounts)]
-pub struct InitSettings<'info> {
-    #[account(mut)]
-    payer: Signer<'info>,
+pub struct UpdateSettings<'info> {
     #[account()]
     authority: Signer<'info>,
     #[account(
-        init,
-        payer=payer,
+        mut,
         seeds = [b"settings"],
-        bump,
-        space = 200
+        bump = settings.bump
     )]
     settings: Account<'info, Settings>,
     #[account(constraint = program.programdata_address()? == Some(program_data.key()))]
     program: Program<'info, crate::program::MeanMultisig>,
     #[account(constraint = program_data.upgrade_authority_address == Some(authority.key()))]
     program_data: Account<'info, ProgramData>,
-    system_program: Program<'info, System>
 }
-
-// #[derive(Accounts)]
-// pub struct UpdateSettings<'info> {
-//     #[account()]
-//     authority: Signer<'info>,
-//     #[account(
-//         mut,
-//         seeds = [b"settings"],
-//         bump = settings.bump
-//     )]
-//     settings: Account<'info, Settings>,
-//     #[account(constraint = program.programdata_address()? == Some(program_data.key()))]
-//     program: Program<'info, crate::program::MeanMultisig>,
-//     #[account(constraint = program_data.upgrade_authority_address == Some(authority.key()))]
-//     program_data: Account<'info, ProgramData>,
-// }
 
 // #[account]
 // pub struct Multisig {
