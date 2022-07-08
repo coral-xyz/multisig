@@ -434,7 +434,6 @@ pub struct CreateMultisig<'info> {
     )]
     ops_account: SystemAccount<'info>,
     #[account(
-        mut,
         seeds = [b"settings"],
         bump = settings.bump
     )]
@@ -476,7 +475,6 @@ pub struct CreateTransaction<'info> {
     )]
     ops_account: SystemAccount<'info>,
     #[account(
-        mut,
         seeds = [b"settings"],
         bump = settings.bump
     )]
