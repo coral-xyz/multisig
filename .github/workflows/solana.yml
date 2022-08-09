@@ -127,10 +127,10 @@ jobs:
         run: yarn global add @project-serum/anchor-cli@${{ env.ANCHOR_VERSION }}
 
       # Run tests
-      - name: Cache build
-        uses: Swatinem/rust-cache@v1
-      - name: Run Tests
-        run: anchor test --provider.cluster localnet --provider.wallet ~/.config/solana/id.json
+      # - name: Cache build
+      #   uses: Swatinem/rust-cache@v1
+      # - name: Run Tests
+      #   run: anchor test --provider.cluster localnet --provider.wallet ~/.config/solana/id.json
 
   audit:
     runs-on: ubuntu-latest
