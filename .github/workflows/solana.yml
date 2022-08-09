@@ -1,0 +1,325 @@
+name: SOLANA-CI
+
+on:
+  push:
+    branches:
+    - develop
+    - feature/*
+  workflow_dispatch:
+
+env:
+  SOLANA_VERSION: "1.10.5"
+  ANCHOR_VERSION: "0.24.2"
+  RUST_TOOLCHAIN: "stable"
+  NODE_VERSION: "17"
+  PROGRAM_NAME: "multisig"
+  MINIMUM_SOL_NEEDED: 6
+  BUILD_NUMBER: $GITHUB_RUN_NUMBER
+  
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      # Install Rust
+      - name: Cache Cargo registry + index
+        uses: actions/cache@v3
+        id: cache-cargo
+        with:
+            path: |
+                ~/.cargo/bin/
+                ~/.cargo/registry/index/
+                ~/.cargo/registry/cache/
+                ~/.cargo/git/db/
+            key: cargo-${{ runner.os }}-v0000-${{ hashFiles('**/Cargo.lock') }}
+      - name: Install Rust ${{ env.RUST_TOOLCHAIN }}
+        uses: actions-rs/toolchain@v1
+        with:
+            override: true
+            profile: minimal
+            toolchain: ${{ env.RUST_TOOLCHAIN }}
+            components: rustfmt, clippy
+
+      # Run build
+      - name: Cache build
+        uses: Swatinem/rust-cache@v1
+      - name: Build program
+        run: cargo build
+      # - name: Run clippy
+      #   run: cargo clippy -- -D warnings -A clippy::too_many_arguments
+
+  ci:
+    runs-on: ubuntu-latest
+    needs: [validate]
+    environment:
+        name: localnet
+    steps:
+      - uses: actions/checkout@v3
+
+      # Install Rust
+      - name: Cache Cargo registry + index
+        uses: actions/cache@v3
+        id: cache-cargo
+        with:
+            path: |
+                ~/.cargo/bin/
+                ~/.cargo/registry/index/
+                ~/.cargo/registry/cache/
+                ~/.cargo/git/db/
+            key: cargo-${{ runner.os }}-v0000-${{ hashFiles('**/Cargo.lock') }}
+      - name: Install Rust ${{ env.RUST_TOOLCHAIN }}
+        uses: actions-rs/toolchain@v1
+        with:
+            override: true
+            profile: minimal
+            toolchain: ${{ env.RUST_TOOLCHAIN }}
+      - name: Install Linux dependencies
+        run: |
+            sudo apt-get update
+            sudo apt-get install -y pkg-config build-essential libudev-dev jq
+      # Install Solana
+      - name: Cache Solana binaries
+        id: solana-cache
+        uses: actions/cache@v3
+        with:
+            path: |
+                ~/.cache/solana
+                ~/.local/share/solana/install
+            key: ${{ runner.os }}-${{ env.SOLANA_VERSION }}
+      - name: Install Solana
+        if: steps.solana-cache.outputs.cache-hit != 'true'
+        run: |
+            sh -c "$(curl -sSfL https://release.solana.com/v${{env.SOLANA_VERSION}}/install)"
+      - name: Setup Solana Path
+        run: |
+            mkdir -p ~/.config/solana/
+            echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+            export PATH="/home/runner/.local/share/solana/install/active_release/bin:$PATH"
+            solana config set --url http://localhost:8899
+            solana config get
+      # Copy secrets
+      - name: Copy secrets
+        run: echo ${{ secrets.DEVNET_PAYER_KEY }} > ~/.config/solana/id.json
+
+      # Install Node
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      # Install Yarn
+      - name: Get yarn cache directory path
+        id: yarn-cache-dir-path
+        run: echo "::set-output name=dir::$(yarn config get cacheFolder)"
+      - name: Yarn Cache
+        uses: actions/cache@v3
+        with:
+            path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
+            key: ${{ runner.os }}-modules-${{ hashFiles('**/yarn.lock') }}
+            restore-keys: |
+                ${{ runner.os }}-modules-
+      - name: Install Packages
+        run: yarn install
+
+      # Install Anchor
+      - name: Install Anchor
+        run: yarn global add @project-serum/anchor-cli@${{ env.ANCHOR_VERSION }}
+
+      # Run tests
+      - name: Cache build
+        uses: Swatinem/rust-cache@v1
+      - name: Run Tests
+        run: anchor test --provider.cluster localnet --provider.wallet ~/.config/solana/id.json -- --features test
+
+  audit:
+    runs-on: ubuntu-latest
+    needs: [ci]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v3
+      - name: Sec3 Pro Audit
+        id: sec3-scan
+        continue-on-error: true    # set to true if you don't want to fail jobs
+        uses: sec3dev/pro-action@v1
+        with:
+          path: programs/msp
+          sec3-token: ${{ secrets.SEC3_AUTO_AUDITOR_TOKEN }}
+      - name: Upload Sarif Report
+        continue-on-error: true    # set to true if you don't want to fail jobs
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: sec3-report.sarif
+      - name: Check on failures
+        if: steps.sec3-scan.outcome != 'success'
+        run: exit 1
+
+  cd-devnet:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/develop'
+    needs: [audit]
+    environment:
+      name: devnet
+    env:
+      CLUSTER: devnet
+      RPC_URL: ${{ secrets.DEVNET_RPC_URL }}
+      MULTISIG_AUTHORITY_ADDRESS: ${{ secrets.DEVNET_MULTISIG_AUTHORITY }}
+    steps:
+      - uses: actions/checkout@v3
+
+      # Install Rust
+      - name: Cache Cargo registry + index
+        uses: actions/cache@v3
+        id: cache-cargo
+        with:
+            path: |
+                ~/.cargo/bin/
+                ~/.cargo/registry/index/
+                ~/.cargo/registry/cache/
+                ~/.cargo/git/db/
+            key: cargo-${{ runner.os }}-v0000-${{ hashFiles('**/Cargo.lock') }}
+      - name: Install Rust ${{ env.RUST_TOOLCHAIN }}
+        uses: actions-rs/toolchain@v1
+        with:
+            override: true
+            profile: minimal
+            toolchain: ${{ env.RUST_TOOLCHAIN }}
+      - name: Install Linux dependencies
+        run: |
+            sudo apt-get update
+            sudo apt-get install -y pkg-config build-essential libudev-dev jq
+      # Install Solana
+      - name: Cache Solana binaries
+        id: solana-cache
+        uses: actions/cache@v3
+        with:
+            path: |
+                ~/.cache/solana
+                ~/.local/share/solana/install
+            key: ${{ runner.os }}-${{ env.SOLANA_VERSION }}
+      - name: Install Solana
+        if: steps.solana-cache.outputs.cache-hit != 'true'
+        run: |
+            sh -c "$(curl -sSfL https://release.solana.com/v${{env.SOLANA_VERSION}}/install)"
+      - name: Setup Solana Path
+        run: |
+            mkdir -p ~/.config/solana/
+            echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+            export PATH="/home/runner/.local/share/solana/install/active_release/bin:$PATH"
+            solana --version
+            solana config get
+      # Copy secrets
+      - name: Copy secrets
+        run: echo ${{ secrets.DEVNET_PAYER_KEY }} > ~/.config/solana/id.json
+
+      # Install Yarn
+      - name: Get yarn cache directory path
+        id: yarn-cache-dir-path
+        run: echo "::set-output name=dir::$(yarn config get cacheFolder)"
+      - name: Yarn Cache
+        uses: actions/cache@v3
+        with:
+            path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
+            key: ${{ runner.os }}-modules-${{ hashFiles('**/yarn.lock') }}
+            restore-keys: |
+                ${{ runner.os }}-modules-
+      # Install Anchor
+      - name: Install Anchor
+        run: yarn global add @project-serum/anchor-cli@${{ env.ANCHOR_VERSION }}
+
+      # Deploy
+      - name: Cache build
+        uses: Swatinem/rust-cache@v1
+      - name: Deploy program
+        uses: nick-fields/retry@v2
+        with:
+          retry_wait_seconds: 2
+          timeout_minutes: 10
+          retry_on: error
+          max_attempts: 3
+          command: sh ./deploy.sh
+      
+      # Print outputs
+      - name: Print account
+        run: echo ${{ env.EXPLORER_URL }}
+
+  cd-mainnet:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    needs: [audit]
+    environment:
+      name: mainnet
+    env:
+      CLUSTER: mainnet
+      RPC_URL: ${{ secrets.MAINNET_RPC_URL }}
+      MULTISIG_AUTHORITY_ADDRESS: ${{ secrets.MAINNET_MULTISIG_AUTHORITY }}
+    steps:
+      - uses: actions/checkout@v3
+
+      # Install Rust
+      - name: Cache Cargo registry + index
+        uses: actions/cache@v3
+        id: cache-cargo
+        with:
+            path: |
+                ~/.cargo/bin/
+                ~/.cargo/registry/index/
+                ~/.cargo/registry/cache/
+                ~/.cargo/git/db/
+            key: cargo-${{ runner.os }}-v0000-${{ hashFiles('**/Cargo.lock') }}
+      - name: Install Rust ${{ env.RUST_TOOLCHAIN }}
+        uses: actions-rs/toolchain@v1
+        with:
+            override: true
+            profile: minimal
+            toolchain: ${{ env.RUST_TOOLCHAIN }}
+      - name: Install Linux dependencies
+        run: |
+            sudo apt-get update
+            sudo apt-get install -y pkg-config build-essential libudev-dev jq
+      # Install Solana
+      - name: Cache Solana binaries
+        id: solana-cache
+        uses: actions/cache@v3
+        with:
+            path: |
+                ~/.cache/solana
+                ~/.local/share/solana/install
+            key: ${{ runner.os }}-${{ env.SOLANA_VERSION }}
+      - name: Install Solana
+        if: steps.solana-cache.outputs.cache-hit != 'true'
+        run: |
+            sh -c "$(curl -sSfL https://release.solana.com/v${{env.SOLANA_VERSION}}/install)"
+      - name: Setup Solana Path
+        run: |
+            mkdir -p ~/.config/solana/
+            echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+            export PATH="/home/runner/.local/share/solana/install/active_release/bin:$PATH"
+            solana --version
+            solana config get
+      # Copy secrets
+      - name: Copy secrets
+        run: echo ${{ secrets.MAINNET_PAYER_KEY }} > ~/.config/solana/id.json
+
+      # Install Yarn
+      - name: Get yarn cache directory path
+        id: yarn-cache-dir-path
+        run: echo "::set-output name=dir::$(yarn config get cacheFolder)"
+      - name: Yarn Cache
+        uses: actions/cache@v3
+        with:
+            path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
+            key: ${{ runner.os }}-modules-${{ hashFiles('**/yarn.lock') }}
+            restore-keys: |
+                ${{ runner.os }}-modules-
+      # Install Anchor
+      - name: Install Anchor
+        run: yarn global add @project-serum/anchor-cli@${{ env.ANCHOR_VERSION }}
+
+      # Deploy
+      - name: Cache build
+        uses: Swatinem/rust-cache@v1
+      - name: Deploy program
+        run: sh ./deploy.sh
+      - name: Print account
+        run: echo ${{ env.BUFFER_ACCOUNT_ADDRESS }}
