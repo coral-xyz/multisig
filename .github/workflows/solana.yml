@@ -130,7 +130,7 @@ jobs:
       - name: Cache build
         uses: Swatinem/rust-cache@v1
       - name: Run Tests
-        run: anchor test --provider.cluster localnet --provider.wallet ~/.config/solana/id.json -- --features default
+        run: anchor test --provider.cluster localnet --provider.wallet ~/.config/solana/id.json
 
   audit:
     runs-on: ubuntu-latest
