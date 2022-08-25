@@ -21,6 +21,9 @@ use anchor_lang::prelude::*;
 use anchor_lang::solana_program::instruction::Instruction;
 use std::ops::Deref;
 
+#[cfg(feature = "devnet")]
+declare_id!("MMSdTDhtwBs2w4MxGCbqfWLgerMQNbXazizghoh7uMJ");
+#[cfg(not(feature = "devnet"))]
 declare_id!("FF7U7Vj1PpBkTPau7frwLLrUHrjkxTQLsH7U5K3T3B3j");
 
 #[program]
@@ -402,6 +405,18 @@ pub mod mean_multisig {
         Ok(())
     }
 
+    pub fn init_settings(ctx: Context<InitSettings>) -> Result<()> {
+
+        ctx.accounts.settings.version = 1u8;
+        ctx.accounts.settings.bump = ctx.bumps["settings"];
+        ctx.accounts.settings.authority = ctx.accounts.authority.key();
+        ctx.accounts.settings.ops_account = "3TD6SWY9M1mLY2kZWJNavPLhwXvcRsWdnZLRaMzERJBw".parse().unwrap();
+        ctx.accounts.settings.create_multisig_fee = 20_000_000;
+        ctx.accounts.settings.create_transaction_fee = 20_000_000;
+
+        Ok(())
+    }
+
     pub fn update_settings(
         ctx: Context<UpdateSettings>, 
         ops_account: Pubkey, 
@@ -626,6 +641,27 @@ pub struct ExecuteTransactionPda<'info> {
     // One of the multisig owners. Checked in the handler.
     #[account(mut)]
     payer: Signer<'info>,
+    system_program: Program<'info, System>
+}
+
+#[derive(Accounts)]
+pub struct InitSettings<'info> {
+    #[account(mut)]
+    payer: Signer<'info>,
+    #[account()]
+    authority: Signer<'info>,
+    #[account(
+        init,
+        payer=payer,
+        seeds = [b"settings"],
+        bump,
+        space = 200
+    )]
+    settings: Account<'info, Settings>,
+    #[account(constraint = program.programdata_address()? == Some(program_data.key()))]
+    program: Program<'info, crate::program::MeanMultisig>,
+    #[account(constraint = program_data.upgrade_authority_address == Some(authority.key()))]
+    program_data: Account<'info, ProgramData>,
     system_program: Program<'info, System>
 }
 
