@@ -17,5 +17,5 @@ default = []
 devnet = []
 
 [dependencies]
-anchor-lang = { version = "^0.24.2", features = ["init-if-needed"] }
-solana-program = "~1.9.29"
+anchor-lang = { version = "0.25.0", features = ["init-if-needed"] }
+solana-program = "1.10.29"
