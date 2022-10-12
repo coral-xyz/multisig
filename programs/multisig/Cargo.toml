@@ -2,7 +2,7 @@
 name = "mean-multisig"
 version = "1.14.0"
 description = "Created with Anchor"
-edition = "2018"
+edition = "2021"
 license = "Apache-2.0"
 
 [lib]
