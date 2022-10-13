@@ -1,8 +1,8 @@
-anchor_version = "0.24.2"
+anchor_version = "0.25.0"
 
 [provider]
 cluster = "devnet"
-wallet = "keys/upgrade-authority.json"
+wallet = "~/.config/solana/id.json"
 
 [programs.mainnet]
 mean_multisig = "FF7U7Vj1PpBkTPau7frwLLrUHrjkxTQLsH7U5K3T3B3j"
@@ -17,4 +17,4 @@ mean_multisig = "MMSdTDhtwBs2w4MxGCbqfWLgerMQNbXazizghoh7uMJ"
 test = "yarn run ts-mocha -p ./tsconfig.json -t 1000000 tests/multisig.ts"
 
 [registry]
-url = "https://anchor.projectserum.com"
+url = "https://api.apr.dev"
