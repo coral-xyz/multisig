@@ -127,10 +127,15 @@ jobs:
         run: yarn global add @project-serum/anchor-cli@${{ env.ANCHOR_VERSION }}
 
       # Run tests
-      # - name: Cache build
-      #   uses: Swatinem/rust-cache@v1
-      # - name: Run Tests
-      #   run: anchor test --provider.cluster localnet --provider.wallet ~/.config/solana/id.json
+      - name: Cache build
+        uses: Swatinem/rust-cache@v1
+      - run: solana-test-validator -r --quiet &
+        name: start validator
+      - run: anchor build -- --features devnet
+      - run: echo ${{ secrets.MEAN_MULTISIG_KEYPAIR }} > target/deploy/mean_multisig-keypair.json
+      - run: solana program deploy --program-id ./target/deploy/mean_multisig-keypair.json --url localhost target/deploy/mean_multisig.so
+      - run: anchor test --skip-local-validator --skip-build --provider.cluster localnet
+        name: Run Tests
 
   audit:
     runs-on: ubuntu-latest
