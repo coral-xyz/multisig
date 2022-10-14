@@ -124,8 +124,8 @@ jobs:
 
       # Install Anchor
       - name: Install Anchor
-        # run: yarn global add @project-serum/anchor-cli@${{ env.ANCHOR_VERSION }}
-        run: cargo install --git https://github.com/coral-xyz/anchor avm --locked --force && avm install ${{ env.ANCHOR_VERSION }} && avm use ${{ env.ANCHOR_VERSION }}
+       # A temporary workaround until 0.25.0 binary is added. See https://github.com/coral-xyz/anchor/issues/2076
+        run: yarn global add @project-serum/anchor-cli@$0.24.2
 
       # Run tests
       - name: Cache build
@@ -231,8 +231,8 @@ jobs:
                 ${{ runner.os }}-modules-
       # Install Anchor
       - name: Install Anchor
-        # run: yarn global add @project-serum/anchor-cli@${{ env.ANCHOR_VERSION }}
-        run: cargo install --git https://github.com/coral-xyz/anchor avm --locked --force && avm install ${{ env.ANCHOR_VERSION }} && avm use ${{ env.ANCHOR_VERSION }}
+       # A temporary workaround until 0.25.0 binary is added. See https://github.com/coral-xyz/anchor/issues/2076
+        run: yarn global add @project-serum/anchor-cli@$0.24.2
 
       # Deploy
       - name: Cache build
@@ -321,8 +321,8 @@ jobs:
                 ${{ runner.os }}-modules-
       # Install Anchor
       - name: Install Anchor
-        # run: yarn global add @project-serum/anchor-cli@${{ env.ANCHOR_VERSION }}
-        run: cargo install --git https://github.com/coral-xyz/anchor avm --locked --force && avm install ${{ env.ANCHOR_VERSION }} && avm use ${{ env.ANCHOR_VERSION }}
+       # A temporary workaround until 0.25.0 binary is added. See https://github.com/coral-xyz/anchor/issues/2076
+        run: yarn global add @project-serum/anchor-cli@$0.24.2
 
       # Deploy
       - name: Cache build
