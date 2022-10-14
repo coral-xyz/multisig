@@ -3,15 +3,16 @@
  * 1. Build the program `anchor build -- --features devnet`
  * 2. Start local validator `solana-test-validator`
  * 3. Deploy the program:
- *   solana program deploy\
- *     --program-id ./target/deploy/mean_multisig-keypair.json\
- *     --url localhost\
- *	   target/deploy/mean_multisig.so
+    solana program deploy\
+      --program-id ./target/deploy/mean_multisig-keypair.json\
+      --url localhost\
+         target/deploy/mean_multisig.so
  * 4. Run tests:
- *   anchor test\
- *     --skip-local-validator\
- *     --provider.cluster localnet\
- *     -- --features devnet
+    anchor test\
+      --skip-local-validator\
+      --skip-deploy\
+      --provider.cluster localnet\
+      -- --features devnet
  */
 import * as anchor from "@project-serum/anchor";
 import { AnchorError, AnchorProvider, BN, Program } from '@project-serum/anchor';
@@ -21,6 +22,7 @@ import { assert, expect } from "chai";
 
 // type Transaction = anchor.IdlAccounts<MeanMultisig>["transaction"];
 type TransactionAccount = anchor.IdlTypes<MeanMultisig>["TransactionAccount"];
+type Owner = anchor.IdlTypes<MeanMultisig>["Owner"];
 
 const MEAN_MULTISIG_OPS = new PublicKey("3TD6SWY9M1mLY2kZWJNavPLhwXvcRsWdnZLRaMzERJBw");
 
@@ -48,18 +50,43 @@ describe("multisig", async () => {
         await fundWallet(provider, owner2Key);
         await fundWallet(provider, owner3Key);
         await fundWallet(provider, nonOwnerKey);
+
+        let settingsAccount = await program.account.settings.fetch(
+            settings,
+            'confirmed'
+        );
+
+        if (!settingsAccount) {
+            await program.methods.initSettings().accounts({
+                payer: (program.provider as AnchorProvider).wallet.publicKey,
+                authority: (program.provider as AnchorProvider).wallet.publicKey,
+                program: program.programId,
+                programData,
+                settings,
+                systemProgram: SystemProgram.programId,
+            }).rpc();
+
+            settingsAccount = await program.account.settings.fetch(
+                settings,
+                'confirmed'
+            );
+        }
+
+        assert.exists(settingsAccount);
+        assert.ok(settingsAccount.createMultisigFee.eq(new BN(20_000_000)));
+        assert.ok(settingsAccount.createTransactionFee.eq(new BN(20_000_000)));
     });
 
-    it("init settings", async () => {
-        await program.methods.initSettings().accounts({
-            payer: (program.provider as AnchorProvider).wallet.publicKey,
-            authority: (program.provider as AnchorProvider).wallet.publicKey,
-            program: program.programId,
-            programData,
-            settings,
-            systemProgram: SystemProgram.programId,
-        }).rpc();
-    });
+    // xit("init settings", async () => {
+    //     await program.methods.initSettings().accounts({
+    //         payer: (program.provider as AnchorProvider).wallet.publicKey,
+    //         authority: (program.provider as AnchorProvider).wallet.publicKey,
+    //         program: program.programId,
+    //         programData,
+    //         settings,
+    //         systemProgram: SystemProgram.programId,
+    //     }).rpc();
+    // });
 
     it("creates multisig account", async () => {
 
@@ -228,24 +255,24 @@ describe("multisig", async () => {
         let expectedError: AnchorError | null = null;
 
         try {
-            
-        await program.methods
-            .executeTransaction()
-            .accounts({
-                multisig: multisig.publicKey,
-                multisigSigner: multisigSigner,
-                transaction: transaction.publicKey,
-                transactionDetail: txDetailAddress,
-                payer: nonOwnerKey.publicKey,
-                systemProgram: SystemProgram.programId,
-            })
-            .signers([nonOwnerKey]) // anyone can execute once it reaches the approval threshold
-            .remainingAccounts(remainingAccounts)
-            .rpc(
-                {
-                    commitment: 'confirmed',
-                }
-            );
+
+            await program.methods
+                .executeTransaction()
+                .accounts({
+                    multisig: multisig.publicKey,
+                    multisigSigner: multisigSigner,
+                    transaction: transaction.publicKey,
+                    transactionDetail: txDetailAddress,
+                    payer: nonOwnerKey.publicKey,
+                    systemProgram: SystemProgram.programId,
+                })
+                .signers([nonOwnerKey]) // anyone can execute once it reaches the approval threshold
+                .remainingAccounts(remainingAccounts)
+                .rpc(
+                    {
+                        commitment: 'confirmed',
+                    }
+                );
         } catch (error) {
             // console.log(error);
             expectedError = error as AnchorError;
@@ -349,6 +376,291 @@ describe("multisig", async () => {
             10_000_000_000,
             `incorrect balance after to ${nonOwnerKey.publicKey} transfer proposal executed`
         );
+    });
+});
+
+describe("multisig2", async () => {
+    const provider = anchor.getProvider() as AnchorProvider;
+    anchor.setProvider(provider);
+    const program = anchor.workspace.MeanMultisig as Program<MeanMultisig>;
+    const [settings] = await PublicKey.findProgramAddress([Buffer.from(anchor.utils.bytes.utf8.encode("settings"))], program.programId);
+
+    it("tests the multisig program", async () => {
+        const multisig = anchor.web3.Keypair.generate();
+        const [multisigSigner, nonce] =
+            await anchor.web3.PublicKey.findProgramAddress(
+                [multisig.publicKey.toBuffer()],
+                program.programId
+            );
+        const [settings] = await PublicKey.findProgramAddress([Buffer.from(anchor.utils.bytes.utf8.encode("settings"))], program.programId);
+
+        const ownerA = anchor.web3.Keypair.generate();
+        const ownerB = anchor.web3.Keypair.generate();
+        const ownerC = anchor.web3.Keypair.generate();
+        const ownerD = anchor.web3.Keypair.generate();
+        const owners2 = [
+            {
+                address: ownerA.publicKey,
+                name: "ownerA"
+            },
+            {
+                address: ownerB.publicKey,
+                name: "ownerB"
+            },
+            {
+                address: ownerC.publicKey,
+                name: "ownerC"
+            }
+        ];
+
+        await fundWallet(provider, ownerA);
+
+        const threshold = new anchor.BN(2);
+
+        await program.methods
+            .createMultisig(owners2, new BN(threshold), nonce, "Safe2")
+            .accounts({
+                proposer: ownerA.publicKey,
+                multisig: multisig.publicKey,
+                settings: settings,
+                opsAccount: MEAN_MULTISIG_OPS,
+                systemProgram: SystemProgram.programId,
+            })
+            .signers([ownerA, multisig])
+            .rpc();
+
+        let multisigAccount = await program.account.multisigV2.fetch(
+            multisig.publicKey
+        );
+        assert.strictEqual(multisigAccount.nonce, nonce);
+        assert.ok(multisigAccount.threshold.eq(new anchor.BN(2)));
+        let fetchedOwners = multisigAccount.owners as Owner[];
+        assert.ok(fetchedOwners[0].address.equals(ownerA.publicKey));
+        assert.ok(fetchedOwners[1].address.equals(ownerB.publicKey));
+        assert.ok(fetchedOwners[2].address.equals(ownerC.publicKey));
+        assert.ok(multisigAccount.ownerSetSeqno === 0);
+
+        const pid = program.programId;
+        const accounts = [
+            {
+                pubkey: multisig.publicKey,
+                isWritable: true,
+                isSigner: false,
+            },
+            {
+                pubkey: multisigSigner,
+                isWritable: false,
+                isSigner: true,
+            },
+        ];
+        const newOwners = [
+            {
+                address: ownerA.publicKey,
+                name: "ownerA"
+            },
+            {
+                address: ownerB.publicKey,
+                name: "ownerB"
+            },
+            {
+                address: ownerD.publicKey,
+                name: "ownerD"
+            }
+        ];
+        const data = program.coder.instruction.encode("edit_multisig", {
+            owners: newOwners,
+            threshold: new BN(2),
+            label: "Safe2.1"
+        });
+
+        const transaction = anchor.web3.Keypair.generate();
+        const txSize = 1000; // Big enough, cuz I'm lazy.
+
+        const [txDetailAddress] = await PublicKey.findProgramAddress(
+            [multisig.publicKey.toBuffer(), transaction.publicKey.toBuffer()],
+            program.programId
+        );
+
+        await program.methods
+            .createTransaction(
+                pid,
+                accounts,
+                data,
+                1,
+                "Update owners",
+                "Update owners",
+                new BN((new Date().getTime() / 1000) + 3600),
+                new BN(0),
+                255
+            )
+            .preInstructions(
+                [
+                    await program.account.transaction.createInstruction(
+                        transaction,
+                        txSize
+                    )
+                ])
+            .accounts({
+                multisig: multisig.publicKey,
+                transaction: transaction.publicKey,
+                transactionDetail: txDetailAddress,
+                proposer: ownerA.publicKey,
+                settings: settings,
+                opsAccount: MEAN_MULTISIG_OPS,
+                systemProgram: SystemProgram.programId,
+            })
+            .signers([transaction, ownerA])
+            .rpc({
+                commitment: 'confirmed',
+            });
+
+        let txAccount = await program.account.transaction.fetch(
+            transaction.publicKey
+        );
+
+        assert.ok(txAccount.programId.equals(pid));
+        assert.deepStrictEqual(txAccount.accounts, accounts);
+        assert.deepStrictEqual(txAccount.data, data);
+        assert.ok(txAccount.multisig.equals(multisig.publicKey));
+        assert.ok(txAccount.executedOn.eq(new BN(0)));
+        assert.ok(txAccount.ownerSetSeqno === 0);
+
+        // Other owner approves transaction.
+        await program.methods
+            .approve()
+            .accounts({
+                multisig: multisig.publicKey,
+                transaction: transaction.publicKey,
+                transactionDetail: txDetailAddress,
+                owner: ownerB.publicKey,
+                systemProgram: SystemProgram.programId,
+            })
+            .signers([ownerB])
+            .rpc(
+                {
+                    commitment: 'confirmed',
+                }
+            );
+
+        // Now that we've reached the threshold, send the transactoin.
+
+        let remainingAccounts2 = [
+            {
+                pubkey: multisig.publicKey,
+                isWritable: true,
+                isSigner: false,
+            },
+            {
+                pubkey: multisigSigner,
+                isWritable: false,
+                isSigner: false,
+            },
+            {
+                pubkey: txAccount.programId,
+                isWritable: false,
+                isSigner: false,
+            },
+        ];
+        // Or we can do:
+        // let remainingAccounts2: {
+        //     pubkey: PublicKey;
+        //     isSigner: boolean;
+        //     isWritable: boolean;
+        // }[] = (txAccount2.accounts as TransactionAccount[])
+        //     // Change the signer status on the vendor signer since it's signed by the program, not the client.
+        //     .map((meta) =>
+        //         meta.pubkey.equals(multisigSigner2)
+        //             ? { ...meta, isSigner: false }
+        //             : meta
+        //     )
+        //     .concat({
+        //         pubkey: txAccount2.programId,
+        //         isWritable: false,
+        //         isSigner: false,
+        //     });
+
+        const randomExecutor = Keypair.generate();
+
+        await program.methods
+            .executeTransaction()
+            .accounts({
+                multisig: multisig.publicKey,
+                multisigSigner: multisigSigner,
+                transaction: transaction.publicKey,
+                transactionDetail: txDetailAddress,
+                payer: randomExecutor.publicKey,
+                systemProgram: SystemProgram.programId,
+            })
+            .signers([randomExecutor]) // anyone can execute once it reaches the approval threshold
+            .remainingAccounts(remainingAccounts2)
+            .rpc(
+                {
+                    commitment: 'confirmed',
+                }
+            );
+
+        multisigAccount = await program.account.multisigV2.fetch(multisig.publicKey);
+
+        txAccount = await program.account.transaction.fetch(
+            transaction.publicKey
+        );
+
+        assert.strictEqual(multisigAccount.nonce, nonce);
+        assert.ok(multisigAccount.threshold.eq(new anchor.BN(2)));
+        fetchedOwners = multisigAccount.owners as Owner[];
+        assert.ok(fetchedOwners[0].address.equals(ownerA.publicKey));
+        assert.ok(fetchedOwners[1].address.equals(ownerB.publicKey));
+        assert.ok(fetchedOwners[2].address.equals(ownerD.publicKey));
+        assert.ok(multisigAccount.ownerSetSeqno === 1);
+        assert.ok(txAccount.executedOn.gt(new BN(0)));
+    });
+
+    it("assert unique owners", async () => {
+        const multisig = anchor.web3.Keypair.generate();
+        const ownerA = anchor.web3.Keypair.generate();
+        const ownerB = anchor.web3.Keypair.generate();
+        const owners = [
+            {
+                address: ownerA.publicKey,
+                name: "ownerA"
+            },
+            {
+                address: ownerB.publicKey,
+                name: "ownerB"
+            },
+            {
+                address: ownerA.publicKey,
+                name: "ownerA"
+            }
+        ];
+
+        await fundWallet(provider, ownerA);
+
+        const threshold = new anchor.BN(2);
+        try {
+            // create multisig
+            const [, nonce] = await PublicKey.findProgramAddress(
+                [multisig.publicKey.toBuffer()],
+                program.programId
+            );
+
+            await program.methods
+                .createMultisig(owners, new BN(threshold), nonce, "Safe3")
+                .accounts({
+                    proposer: ownerA.publicKey,
+                    multisig: multisig.publicKey,
+                    settings,
+                    opsAccount: MEAN_MULTISIG_OPS,
+                    systemProgram: SystemProgram.programId,
+                })
+                .signers([ownerA, multisig])
+                .rpc();
+            assert.fail();
+        } catch (err) {
+            const error = (err as AnchorError).error;
+            assert.strictEqual(error.errorCode.number, 6009);
+            assert.strictEqual(error.errorMessage, "Owners must be unique.");
+        }
     });
 });
 
