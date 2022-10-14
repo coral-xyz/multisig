@@ -124,7 +124,8 @@ jobs:
 
       # Install Anchor
       - name: Install Anchor
-        run: yarn global add @project-serum/anchor-cli@${{ env.ANCHOR_VERSION }}
+        run: cargo install --git https://github.com/coral-xyz/anchor --tag v${{ env.ANCHOR_VERSION }} anchor-cli --locked
+        # run: yarn global add @project-serum/anchor-cli@${{ env.ANCHOR_VERSION }}
 
       # Run tests
       - name: Cache build
@@ -230,7 +231,7 @@ jobs:
                 ${{ runner.os }}-modules-
       # Install Anchor
       - name: Install Anchor
-        run: cargo install --git https://github.com/coral-xyz/anchor --tag v0.25.0 anchor-cli --locked
+        run: cargo install --git https://github.com/coral-xyz/anchor --tag v${{ env.ANCHOR_VERSION }} anchor-cli --locked
         # run: yarn global add @project-serum/anchor-cli@${{ env.ANCHOR_VERSION }}
 
       # Deploy
@@ -320,7 +321,8 @@ jobs:
                 ${{ runner.os }}-modules-
       # Install Anchor
       - name: Install Anchor
-        run: yarn global add @project-serum/anchor-cli@${{ env.ANCHOR_VERSION }}
+        run: cargo install --git https://github.com/coral-xyz/anchor --tag v${{ env.ANCHOR_VERSION }} anchor-cli --locked
+        # run: yarn global add @project-serum/anchor-cli@${{ env.ANCHOR_VERSION }}
 
       # Deploy
       - name: Cache build
