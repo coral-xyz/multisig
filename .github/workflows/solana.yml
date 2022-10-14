@@ -130,7 +130,7 @@ jobs:
       - name: Cache build
         uses: Swatinem/rust-cache@v1
       - run: solana-test-validator -r --quiet &
-        name: start validator
+        name: Start validator
       - run: anchor build -- --features devnet
       - run: echo ${{ secrets.MEAN_MULTISIG_KEYPAIR }} > target/deploy/mean_multisig-keypair.json
       - run: solana program deploy --program-id ./target/deploy/mean_multisig-keypair.json --url localhost target/deploy/mean_multisig.so
@@ -230,7 +230,8 @@ jobs:
                 ${{ runner.os }}-modules-
       # Install Anchor
       - name: Install Anchor
-        run: yarn global add @project-serum/anchor-cli@${{ env.ANCHOR_VERSION }}
+        run: cargo install --git https://github.com/coral-xyz/anchor --tag v0.25.0 anchor-cli --locked
+        # run: yarn global add @project-serum/anchor-cli@${{ env.ANCHOR_VERSION }}
 
       # Deploy
       - name: Cache build
