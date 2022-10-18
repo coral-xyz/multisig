@@ -21,7 +21,7 @@ signed.
 
 ## Note
 
-* **This code is unaudited. Use at your own risk.**
+* **This code (0.9.0) is [audited](./SECURITY_AUDIT_REPORT.pdf). Audit commissioned by [Streamflow](https://github.com/streamflow-finance).**
 
 ## Non-Upgradeable mainnet-beta verifiable deployed versions
 
