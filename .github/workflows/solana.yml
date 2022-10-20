@@ -12,7 +12,8 @@ env:
   ANCHOR_VERSION: "0.25.0"
   RUST_TOOLCHAIN: "stable"
   NODE_VERSION: "17"
-  PROGRAM_NAME: "multisig"
+  PROGRAM_NAME: "mean_multisig"
+  PROGRAM_DIR_NAME: "multisig"
   MINIMUM_SOL_NEEDED: 6
   BUILD_NUMBER: $GITHUB_RUN_NUMBER
   
@@ -149,7 +150,7 @@ jobs:
         continue-on-error: true    # set to true if you don't want to fail jobs
         uses: sec3dev/pro-action@v1
         with:
-          path: programs/${{env.PROGRAM_NAME}}
+          path: programs/${{env.PROGRAM_DIR_NAME}}
           sec3-token: ${{ secrets.SEC3_AUTO_AUDITOR_TOKEN }}
       - name: Upload Sarif Report
         continue-on-error: true    # set to true if you don't want to fail jobs
