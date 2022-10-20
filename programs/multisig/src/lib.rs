@@ -166,14 +166,12 @@ pub mod mean_multisig {
         tx.operation = operation;
         // tx.keypairs = keypairs; // deprecated
         tx.proposer = ctx.accounts.proposer.key();
-        // These to fields are optional since all Txs doesn't need to create a PDA account
+        // These two fields are optional since not all transactions create a new account
         tx.pda_timestamp = pda_timestamp;
         tx.pda_bump = pda_bump;
 
         let tx_detail = &mut ctx.accounts.transaction_detail;
         // Save transaction detail
-        // tx_detail.multisig = ctx.accounts.multisig.key();
-        // tx_detail.transaction = ctx.accounts.transaction.key();
         tx_detail.title = string_to_array_64(&title);
         tx_detail.description = string_to_array_512(&description);
         tx_detail.expiration_date = expiration_date;
@@ -419,12 +417,14 @@ pub mod mean_multisig {
 
     pub fn update_settings(
         ctx: Context<UpdateSettings>, 
-        ops_account: Pubkey, 
+        authority: Pubkey,
+        ops_account: Pubkey,
         create_multisig_fee: u64,
         create_transaction_fee: u64,
 
     ) -> Result<()> {
 
+        ctx.accounts.settings.authority = authority;
         ctx.accounts.settings.ops_account = ops_account;
         ctx.accounts.settings.create_multisig_fee = create_multisig_fee;
         ctx.accounts.settings.create_transaction_fee = create_transaction_fee;
@@ -658,7 +658,9 @@ pub struct InitSettings<'info> {
     settings: Account<'info, Settings>,
     #[account(constraint = program.programdata_address()? == Some(program_data.key()))]
     program: Program<'info, crate::program::MeanMultisig>,
-    #[account(constraint = program_data.upgrade_authority_address == Some(authority.key()))]
+    #[account(
+        constraint = program_data.upgrade_authority_address == Some(authority.key()) @ ErrorCode::InvalidSettingsAuthority
+    )]
     program_data: Account<'info, ProgramData>,
     system_program: Program<'info, System>
 }
@@ -675,7 +677,11 @@ pub struct UpdateSettings<'info> {
     settings: Account<'info, Settings>,
     #[account(constraint = program.programdata_address()? == Some(program_data.key()))]
     program: Program<'info, crate::program::MeanMultisig>,
-    #[account(constraint = program_data.upgrade_authority_address == Some(authority.key()))]
+    #[account(
+        constraint = authority.key() == settings.authority || 
+            program_data.upgrade_authority_address == Some(authority.key())
+            @ ErrorCode::InvalidSettingsAuthority
+    )]
     program_data: Account<'info, ProgramData>,
 }
 
@@ -866,7 +872,7 @@ pub enum ErrorCode {
     NotEnoughSigners,
     #[msg("Cannot delete a transaction that has been signed by an owner.")]
     TransactionAlreadySigned,
-    #[msg("Operation overflow")]
+    #[msg("Operation overflow.")]
     Overflow,
     #[msg("Cannot delete a transaction the owner did not create.")]
     UnableToDelete,
@@ -887,5 +893,7 @@ pub enum ErrorCode {
     #[msg("Multisig owner set secuency number is not valid.")]
     InvalidOwnerSetSeqNumber,
     #[msg("Multisig account is not valid.")]
-    InvalidMultisig
+    InvalidMultisig,
+    #[msg("Invalid settings authority.")]
+    InvalidSettingsAuthority
 }

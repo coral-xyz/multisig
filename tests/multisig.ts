@@ -27,23 +27,50 @@ type Owner = anchor.IdlTypes<MeanMultisig>["Owner"];
 const MEAN_MULTISIG_OPS = new PublicKey("3TD6SWY9M1mLY2kZWJNavPLhwXvcRsWdnZLRaMzERJBw");
 
 describe("multisig", async () => {
+
     const provider = anchor.getProvider() as AnchorProvider;
     anchor.setProvider(provider);
+
+    const setupInfo: { name: string, pubkey: PublicKey }[] = [];
+
     const program = anchor.workspace.MeanMultisig as Program<MeanMultisig>;
+    setupInfo.push({ name: "PROGRAM", pubkey: program.programId });
+
+    const payer = (program.provider as AnchorProvider).wallet.publicKey;
+    setupInfo.push({ name: "PAYER", pubkey: payer });
+    
     const [settings] = await PublicKey.findProgramAddress([Buffer.from(anchor.utils.bytes.utf8.encode("settings"))], program.programId);
+    setupInfo.push({ name: "SETTINGS", pubkey: settings });
+
     const [programData] = await PublicKey.findProgramAddress([program.programId.toBytes()], new anchor.web3.PublicKey("BPFLoaderUpgradeab1e11111111111111111111111"));
+    setupInfo.push({ name: "PROGRAMDATA", pubkey: programData });
 
     const multisig = Keypair.generate();
+    setupInfo.push({ name: "MULTISIG", pubkey: multisig.publicKey });
+
     const transaction = Keypair.generate();
+    setupInfo.push({ name: "TRANSACTION", pubkey: transaction.publicKey });
+
     const [txDetailAddress] = await PublicKey.findProgramAddress(
         [multisig.publicKey.toBuffer(), transaction.publicKey.toBuffer()],
         program.programId
     );
+    console.log(`TXDETAILADDRESS: ${txDetailAddress}`);
+    setupInfo.push({ name: "TXDETAILADDRESS", pubkey: txDetailAddress });
 
     const owner1Key = Keypair.generate();
+    setupInfo.push({ name: "OWNER1", pubkey: owner1Key.publicKey });
+
     const owner2Key = Keypair.generate();
+    setupInfo.push({ name: "OWNER2", pubkey: owner2Key.publicKey });
+
     const owner3Key = Keypair.generate();
+    setupInfo.push({ name: "OWNER3", pubkey: owner3Key.publicKey });
+
     const nonOwnerKey = Keypair.generate();
+    setupInfo.push({ name: "NONOWNER", pubkey: nonOwnerKey.publicKey });
+
+    console.table(setupInfo.map(r => new Object({ NAME: r.name, PUBKEY: r.pubkey.toBase58() })));
 
     before(async () => {
         await fundWallet(provider, owner1Key);
@@ -51,41 +78,47 @@ describe("multisig", async () => {
         await fundWallet(provider, owner3Key);
         await fundWallet(provider, nonOwnerKey);
 
-        let settingsAccount = await program.account.settings.fetch(
+        await program.methods.initSettings().accounts({
+            payer: payer,
+            authority: payer,
+            program: program.programId,
+            programData,
+            settings,
+            systemProgram: SystemProgram.programId,
+        }).rpc({ commitment: "confirmed" });
+
+        const settingsAccount = await program.account.settings.fetch(
             settings,
             'confirmed'
         );
 
-        if (!settingsAccount) {
-            await program.methods.initSettings().accounts({
-                payer: (program.provider as AnchorProvider).wallet.publicKey,
-                authority: (program.provider as AnchorProvider).wallet.publicKey,
-                program: program.programId,
-                programData,
-                settings,
-                systemProgram: SystemProgram.programId,
-            }).rpc();
-
-            settingsAccount = await program.account.settings.fetch(
-                settings,
-                'confirmed'
-            );
-        }
-
         assert.exists(settingsAccount);
+        assert.ok(settingsAccount.authority.equals(payer));
+        assert.ok(settingsAccount.opsAccount.equals(MEAN_MULTISIG_OPS));
         assert.ok(settingsAccount.createMultisigFee.eq(new BN(20_000_000)));
         assert.ok(settingsAccount.createTransactionFee.eq(new BN(20_000_000)));
     });
 
-    // xit("init settings", async () => {
+    // it("init settings", async () => {
     //     await program.methods.initSettings().accounts({
-    //         payer: (program.provider as AnchorProvider).wallet.publicKey,
-    //         authority: (program.provider as AnchorProvider).wallet.publicKey,
+    //         payer: payer,
+    //         authority: payer,
     //         program: program.programId,
     //         programData,
     //         settings,
     //         systemProgram: SystemProgram.programId,
-    //     }).rpc();
+    //     }).rpc({ commitment: "confirmed" });
+
+    //     const settingsAccount = await program.account.settings.fetch(
+    //         settings,
+    //         'confirmed'
+    //     );
+
+    //     assert.exists(settingsAccount);
+    //     assert.ok(settingsAccount.authority.equals(payer));
+    //     assert.ok(settingsAccount.opsAccount.equals(MEAN_MULTISIG_OPS));
+    //     assert.ok(settingsAccount.createMultisigFee.eq(new BN(20_000_000)));
+    //     assert.ok(settingsAccount.createTransactionFee.eq(new BN(20_000_000)));
     // });
 
     it("creates multisig account", async () => {
@@ -255,7 +288,6 @@ describe("multisig", async () => {
         let expectedError: AnchorError | null = null;
 
         try {
-
             await program.methods
                 .executeTransaction()
                 .accounts({
@@ -273,6 +305,7 @@ describe("multisig", async () => {
                         commitment: 'confirmed',
                     }
                 );
+                assert.fail("The statements above should fail");
         } catch (error) {
             // console.log(error);
             expectedError = error as AnchorError;
@@ -377,9 +410,114 @@ describe("multisig", async () => {
             `incorrect balance after to ${nonOwnerKey.publicKey} transfer proposal executed`
         );
     });
+
+    it("updates settings",async () => {
+        const newAuthority1Key = Keypair.generate();
+        const newAuthority2Key = Keypair.generate();
+        const newOpsAccountKey = Keypair.generate();
+        const newCreateMultisigFee = 50_000_000;
+        const newCreateTransactionFee = 60_000_000;
+
+        await program.methods.updateSettings(
+            newAuthority1Key.publicKey,
+            newOpsAccountKey.publicKey,
+            new BN(newCreateMultisigFee),
+            new BN(newCreateTransactionFee)
+        )
+        .accounts({
+            authority: payer,
+            settings,
+            program: program.programId,
+            programData,
+        }).rpc({ commitment: "confirmed" });
+
+        let settingsAccount = await program.account.settings.fetch(
+            settings,
+            'confirmed'
+        );
+
+        assert.exists(settingsAccount);
+        assert.ok(settingsAccount.authority.equals(newAuthority1Key.publicKey));
+        assert.ok(settingsAccount.opsAccount.equals(newOpsAccountKey.publicKey));
+        assert.equal(settingsAccount.createMultisigFee.toString(), "50000000");
+        assert.equal(settingsAccount.createTransactionFee.toString(), "60000000");
+
+        // Asserts that the new settings authority can update the settings
+        await program.methods.updateSettings(
+            newAuthority2Key.publicKey,
+            newOpsAccountKey.publicKey,
+            new BN(newCreateMultisigFee),
+            new BN(newCreateTransactionFee)
+        )
+        .accounts({
+            authority: newAuthority1Key.publicKey,
+            settings,
+            program: program.programId,
+            programData,
+        })
+        .signers([newAuthority1Key])
+        .rpc({ commitment: "confirmed" });
+
+        settingsAccount = await program.account.settings.fetch(
+            settings,
+            'confirmed'
+        );
+        assert.ok(settingsAccount.authority.equals(newAuthority2Key.publicKey));
+
+        // Asserts that the original settings authority continues to be able to
+        // update the setings (because it is the program upgrade authority)
+        await program.methods.updateSettings(
+            payer,
+            newOpsAccountKey.publicKey,
+            new BN(newCreateMultisigFee),
+            new BN(newCreateTransactionFee)
+        )
+        .accounts({
+            authority: payer,
+            settings,
+            program: program.programId,
+            programData,
+        })
+        // .signers([...]) // signed with payer authomatically by anchor
+        .rpc({ commitment: "confirmed" });
+
+        settingsAccount = await program.account.settings.fetch(
+            settings,
+            'confirmed'
+        );
+        assert.ok(settingsAccount.authority.equals(payer));
+
+        // Assert that previous settings authority can not update the settings anymore 
+        let expectedError: AnchorError | null = null;
+
+        try {
+            await program.methods.updateSettings(
+                newAuthority1Key.publicKey,
+                newOpsAccountKey.publicKey,
+                new BN(newCreateMultisigFee),
+                new BN(newCreateTransactionFee)
+            )
+            .accounts({
+                authority: newAuthority1Key.publicKey,
+                settings,
+                program: program.programId,
+                programData,
+            })
+            .signers([newAuthority1Key])
+            .rpc({ commitment: "confirmed" });
+            assert.fail("The statements above should fail");
+        } catch (error) {
+            // console.log(error);
+            expectedError = error as AnchorError;
+        }
+        assert.isNotEmpty(expectedError);
+        assert.equal(expectedError?.error.errorCode.code, 'InvalidSettingsAuthority');
+        assert.equal(expectedError?.error.errorCode.number, 6015);
+        assert.equal(expectedError?.error.errorMessage, 'Invalid settings authority.');
+    })
 });
 
-describe("multisig2", async () => {
+describe("multisig-owners", async () => {
     const provider = anchor.getProvider() as AnchorProvider;
     anchor.setProvider(provider);
     const program = anchor.workspace.MeanMultisig as Program<MeanMultisig>;
