@@ -41,6 +41,16 @@ pub mod mean_multisig {
 
     ) -> Result<()> {
 
+        let (_expected_signer_address, expected_bump) =
+            Pubkey::find_program_address(
+                &[ctx.accounts.multisig.key().to_bytes().as_ref()],
+                ctx.program_id
+            );
+
+        if expected_bump != nonce {
+            return Err(ErrorCode::InvalidMultisigNonce.into());
+        }
+
         assert_unique_owners(&owners)?;
         require!(threshold > 0 && threshold <= owners.len() as u64, InvalidThreshold);
         require!(owners.len() > 0 && owners.len() <= 10, InvalidOwnersLen);

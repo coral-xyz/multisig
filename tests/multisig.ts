@@ -411,6 +411,148 @@ describe("multisig", async () => {
         );
     });
 
+    it("fails to create multisig with non-canonical bump", async () => {
+
+        const label = 'Test non-canonical bump';
+        const threshold = new BN(2);
+        const owners = [
+            {
+                address: owner1Key.publicKey,
+                name: "owner1"
+            },
+            {
+                address: owner2Key.publicKey,
+                name: "owner2"
+            },
+            {
+                address: owner3Key.publicKey,
+                name: "owner3"
+            }
+        ];
+
+        const multisigKey = Keypair.generate();
+
+        const [, nonce] = await PublicKey.findProgramAddress(
+            [multisigKey.publicKey.toBuffer()],
+            program.programId
+        );
+        // console.log(`canonical bump: ${nonce}`);
+        
+        // find next possible bump
+        let nextBump = nonce - 1;
+        for (nextBump; nextBump >= 0; nextBump--) {
+            // console.log(nextBump);
+            try {
+                const signerAddress = await PublicKey.createProgramAddress(
+                    [multisigKey.publicKey.toBuffer(), Buffer.from([nextBump])],
+                    program.programId
+                );
+                // console.log(`bump: ${nextBump} produces an address off-curve: ${signerAddress}`);
+                break;
+            } catch (error) {
+                // console.log(`bump: ${nextBump} produces an address on-curve... skipping`);
+                continue;
+            }
+        }
+
+        if(nextBump < 0) {
+            assert.fail("Could not find next bump");
+        }
+
+        let expectedError: AnchorError | null = null;
+
+        try {
+            // create multisig
+            await program.methods
+            .createMultisig(owners, new BN(threshold), nextBump, label)
+            .accounts({
+                proposer: owner1Key.publicKey,
+                multisig: multisigKey.publicKey,
+                settings,
+                opsAccount: MEAN_MULTISIG_OPS,
+                systemProgram: SystemProgram.programId,
+            })
+            .signers([owner1Key, multisigKey])
+            .rpc();
+            assert.fail("The statements above should fail");
+        } catch (error) {
+            // console.log(error);
+            expectedError = error as AnchorError;
+        }
+        assert.isNotEmpty(expectedError);
+        assert.equal(expectedError?.error.errorCode.code, 'InvalidMultisigNonce');
+        assert.equal(expectedError?.error.errorCode.number, 6011);
+        assert.equal(expectedError?.error.errorMessage, 'Multisig nonce is not valid.');
+    });
+
+    it("fails to create multisig with bump that producess on-curve signer address", async () => {
+
+        const label = 'Test invalid bump';
+        const threshold = new BN(2);
+        const owners = [
+            {
+                address: owner1Key.publicKey,
+                name: "owner1"
+            },
+            {
+                address: owner2Key.publicKey,
+                name: "owner2"
+            },
+            {
+                address: owner3Key.publicKey,
+                name: "owner3"
+            }
+        ];
+
+        const multisigKey = Keypair.generate();
+
+        // find next possible bump
+        let nextBump = 255;
+        for (nextBump; nextBump >= 0; nextBump--) {
+            // console.log(nextBump);
+            try {
+                const signerAddress = await PublicKey.createProgramAddress(
+                    [multisigKey.publicKey.toBuffer(), Buffer.from([nextBump])],
+                    program.programId
+                );
+                // console.log(`bump: ${nextBump} produces an address off-curve: ${signerAddress}`);
+                continue;
+            } catch (error) {
+                // console.log(`bump: ${nextBump} produces an address on-curve... skipping`);
+                break;
+            }
+        }
+
+        if(nextBump < 0) {
+            assert.fail("Could not find next bump");
+        }
+
+        let expectedError: AnchorError | null = null;
+
+        try {
+            // create multisig
+            await program.methods
+            .createMultisig(owners, new BN(threshold), nextBump, label)
+            .accounts({
+                proposer: owner1Key.publicKey,
+                multisig: multisigKey.publicKey,
+                settings,
+                opsAccount: MEAN_MULTISIG_OPS,
+                systemProgram: SystemProgram.programId,
+            })
+            .signers([owner1Key, multisigKey])
+            .rpc();
+            assert.fail("The statements above should fail");
+        } catch (error) {
+            // console.log(error);
+            expectedError = error as AnchorError;
+        }
+        assert.isNotEmpty(expectedError);
+        assert.equal(expectedError?.error.errorCode.code, 'InvalidMultisigNonce');
+        assert.equal(expectedError?.error.errorCode.number, 6011);
+        assert.equal(expectedError?.error.errorMessage, 'Multisig nonce is not valid.');
+    });
+
     it("updates settings",async () => {
         const newAuthority1Key = Keypair.generate();
         const newAuthority2Key = Keypair.generate();
