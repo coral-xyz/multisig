@@ -595,7 +595,7 @@ pub struct ExecuteTransaction<'info> {
         constraint = multisig.owner_set_seqno == transaction.owner_set_seqno @ ErrorCode::InvalidOwnerSetSeqNumber
     )]
     multisig: Box<Account<'info, MultisigV2>>,
-    /// CHECK: `doc comment explaining why no checks through types are necessary`
+    /// CHECK: multisig_signer is a PDA program signer. Data is never read or written to
     #[account(
         seeds = [multisig.key().as_ref()],
         bump = multisig.nonce,
@@ -618,19 +618,18 @@ pub struct ExecuteTransaction<'info> {
 
 #[derive(Accounts)]
 pub struct ExecuteTransactionPda<'info> {
-    /// CHECK: multisig_signer is a PDA program signer. Data is never read or written to
     #[account(
         mut,
         constraint = multisig.owner_set_seqno == transaction.owner_set_seqno @ ErrorCode::InvalidOwnerSetSeqNumber
     )]
     multisig: Box<Account<'info, MultisigV2>>,
-    /// CHECK: `doc comment explaining why no checks through types are necessary`
+    /// CHECK: multisig_signer is a PDA program signer. Data is never read or written to
     #[account(
         seeds = [multisig.key().as_ref()],
         bump = multisig.nonce,
     )]
     multisig_signer: UncheckedAccount<'info>,
-    /// CHECK: `doc comment explaining why no checks through types are necessary`
+    /// CHECK: pda_account is a PDA program signer. Data is never read or written to
     #[account(
         mut,
         seeds = [multisig.key().as_ref(), &transaction.pda_timestamp.to_le_bytes()],
