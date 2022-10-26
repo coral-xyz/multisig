@@ -21,6 +21,10 @@ use anchor_lang::prelude::*;
 use anchor_lang::solana_program::instruction::Instruction;
 use std::ops::Deref;
 
+pub mod account_replacement_placeholder {
+    anchor_lang::declare_id!("NewPubkey1111111111111111111111111111111111");
+}
+
 #[cfg(feature = "devnet")]
 declare_id!("MMSdTDhtwBs2w4MxGCbqfWLgerMQNbXazizghoh7uMJ");
 #[cfg(not(feature = "devnet"))]
@@ -341,7 +345,10 @@ pub mod mean_multisig {
     }
 
     /// Executes the given transaction if threshold owners have signed it.
-    pub fn execute_transaction_pda(ctx: Context<ExecuteTransactionPda>) -> Result<()> {
+    pub fn execute_transaction_with_replacements(
+        ctx: Context<ExecuteTransaction>,
+        replacement_accounts: Vec<Pubkey>
+    ) -> Result<()> {
 
         // Has this been executed already?
         if ctx.accounts.transaction.executed_on > 0 {
@@ -352,7 +359,7 @@ pub mod mean_multisig {
         let now = Clock::get()?.unix_timestamp as u64;
 
         if ctx.accounts.transaction_detail.expiration_date > 0 && 
-           ctx.accounts.transaction_detail.expiration_date < now 
+        ctx.accounts.transaction_detail.expiration_date < now 
         {
             return Err(ErrorCode::AlreadyExpired.into());
         }
@@ -372,35 +379,37 @@ pub mod mean_multisig {
 
         // Execute the transaction signed by the multisig.
         let mut ix: Instruction = (*ctx.accounts.transaction).deref().into();
-        ix.accounts = ix
-            .accounts
-            .iter()
-            .map(|acc| {
-                let mut acc = acc.clone();
-                if &acc.pubkey == ctx.accounts.multisig_signer.to_account_info().key ||
-                   &acc.pubkey == ctx.accounts.pda_account.to_account_info().key 
-                {
-                    acc.is_signer = true;
+        let mut last_replacement_account_index_used = 0;
+        let mut mapped_accounts = vec!();
+        
+        for acc in ix.accounts.iter() {
+            let mut acc = acc.clone();
+            if &acc.pubkey == ctx.accounts.multisig_signer.to_account_info().key {
+                acc.is_signer = true;
+            } else if acc.pubkey == account_replacement_placeholder::ID {
+                if last_replacement_account_index_used == replacement_accounts.len() {
+                    return Err(ErrorCode::NotEnoughReplacementAccounts.into());
                 }
-                acc
-            })
-            .collect();
+                let replacement_account = replacement_accounts
+                    .get(last_replacement_account_index_used)
+                    .unwrap();
+                acc.pubkey = *replacement_account;
+                acc.is_signer = true;
+                last_replacement_account_index_used = last_replacement_account_index_used + 1;
+            }
+            mapped_accounts.push(acc);
+        }
+        ix.accounts = mapped_accounts;
 
-        let transaction_seeds = &[
+        let seeds = &[
             ctx.accounts.multisig.to_account_info().key.as_ref(),            
             &[ctx.accounts.multisig.nonce],
         ];
 
-        let pda_seeds = &[
-            ctx.accounts.multisig.to_account_info().key.as_ref(),
-            &ctx.accounts.transaction.pda_timestamp.to_le_bytes(),
-            &[ctx.accounts.transaction.pda_bump],
-        ];
-
-        let signers = &[&transaction_seeds[..], &pda_seeds[..]];
+        let signer = &[&seeds[..]];
         let accounts = ctx.remaining_accounts;
-        let _ = solana_program::program::invoke_signed(&ix, accounts, signers)?;
-        let _ = ctx.accounts.multisig.reload()?;
+        solana_program::program::invoke_signed(&ix, accounts, signer)?;
+        ctx.accounts.multisig.reload()?;
         // Burn the transaction to ensure one time use.
         ctx.accounts.transaction.executed_on = Clock::get()?.unix_timestamp as u64;
 
@@ -904,5 +913,7 @@ pub enum ErrorCode {
     #[msg("Multisig account is not valid.")]
     InvalidMultisig,
     #[msg("Invalid settings authority.")]
-    InvalidSettingsAuthority
+    InvalidSettingsAuthority,
+    #[msg("Not enough replacement accounts.")]
+    NotEnoughReplacementAccounts
 }
