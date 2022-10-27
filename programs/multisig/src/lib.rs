@@ -149,8 +149,8 @@ pub mod mean_multisig {
         title: String,
         description: String,
         expiration_date: u64,
-        pda_timestamp: u64,
-        pda_bump: u8
+        _pda_timestamp: u64, // deprecated
+        _pda_bump: u8 // deprecated
 
     ) -> Result<()> {
 
@@ -180,9 +180,6 @@ pub mod mean_multisig {
         tx.operation = operation;
         // tx.keypairs = keypairs; // deprecated
         tx.proposer = ctx.accounts.proposer.key();
-        // These two fields are optional since not all transactions create a new account
-        tx.pda_timestamp = pda_timestamp;
-        tx.pda_bump = pda_bump;
 
         let tx_detail = &mut ctx.accounts.transaction_detail;
         // Save transaction detail
@@ -724,8 +721,10 @@ pub struct Transaction {
     pub keypairs: Vec<[u8; 64]>,
     /// The proposer of the transaction
     pub proposer: Pubkey,
+    #[deprecated]
     /// The timestamp used as part of the seed of the PDA account
     pub pda_timestamp: u64,
+    #[deprecated]
     /// The bump used to derive the PDA account
     pub pda_bump: u8
 }
