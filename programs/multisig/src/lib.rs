@@ -626,41 +626,6 @@ pub struct ExecuteTransaction<'info> {
 }
 
 #[derive(Accounts)]
-pub struct ExecuteTransactionPda<'info> {
-    #[account(
-        mut,
-        constraint = multisig.owner_set_seqno == transaction.owner_set_seqno @ ErrorCode::InvalidOwnerSetSeqNumber
-    )]
-    multisig: Box<Account<'info, MultisigV2>>,
-    /// CHECK: multisig_signer is a PDA program signer. Data is never read or written to
-    #[account(
-        seeds = [multisig.key().as_ref()],
-        bump = multisig.nonce,
-    )]
-    multisig_signer: UncheckedAccount<'info>,
-    /// CHECK: pda_account is a PDA program signer. Data is never read or written to
-    #[account(
-        mut,
-        seeds = [multisig.key().as_ref(), &transaction.pda_timestamp.to_le_bytes()],
-        bump = transaction.pda_bump,
-    )]
-    pda_account: UncheckedAccount<'info>,
-    #[account(mut, has_one = multisig)]
-    transaction: Box<Account<'info, Transaction>>,
-    #[account(
-        init_if_needed,
-        payer = payer,
-        seeds = [multisig.key().as_ref(), transaction.key().as_ref()],
-        bump,
-        space = 8 + 584 // discriminator + account size
-    )]
-    transaction_detail: Box<Account<'info, TransactionDetail>>,
-    #[account(mut)]
-    payer: Signer<'info>,
-    system_program: Program<'info, System>
-}
-
-#[derive(Accounts)]
 pub struct InitSettings<'info> {
     #[account(mut)]
     payer: Signer<'info>,
