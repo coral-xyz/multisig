@@ -25,6 +25,7 @@ type TransactionAccount = anchor.IdlTypes<MeanMultisig>["TransactionAccount"];
 type Owner = anchor.IdlTypes<MeanMultisig>["Owner"];
 
 const MEAN_MULTISIG_OPS = new PublicKey("3TD6SWY9M1mLY2kZWJNavPLhwXvcRsWdnZLRaMzERJBw");
+const ACCOUNT_REPLACEMENT_PLACEHOLDER = new PublicKey("NewPubkey1111111111111111111111111111111111");
 
 describe("multisig", async () => {
 
@@ -38,7 +39,7 @@ describe("multisig", async () => {
 
     const payer = (program.provider as AnchorProvider).wallet.publicKey;
     setupInfo.push({ name: "PAYER", pubkey: payer });
-    
+
     const [settings] = await PublicKey.findProgramAddress([Buffer.from(anchor.utils.bytes.utf8.encode("settings"))], program.programId);
     setupInfo.push({ name: "SETTINGS", pubkey: settings });
 
@@ -305,7 +306,7 @@ describe("multisig", async () => {
                         commitment: 'confirmed',
                     }
                 );
-                assert.fail("The statements above should fail");
+            assert.fail("The statements above should fail");
         } catch (error) {
             // console.log(error);
             expectedError = error as AnchorError;
@@ -411,7 +412,492 @@ describe("multisig", async () => {
         );
     });
 
-    it("updates settings",async () => {
+    it("fails to create multisig with non-canonical bump", async () => {
+
+        const label = 'Test non-canonical bump';
+        const threshold = new BN(2);
+        const owners = [
+            {
+                address: owner1Key.publicKey,
+                name: "owner1"
+            },
+            {
+                address: owner2Key.publicKey,
+                name: "owner2"
+            },
+            {
+                address: owner3Key.publicKey,
+                name: "owner3"
+            }
+        ];
+
+        const multisigKey = Keypair.generate();
+
+        const [, nonce] = await PublicKey.findProgramAddress(
+            [multisigKey.publicKey.toBuffer()],
+            program.programId
+        );
+        // console.log(`canonical bump: ${nonce}`);
+
+        // find next possible bump
+        let nextBump = nonce - 1;
+        for (nextBump; nextBump >= 0; nextBump--) {
+            // console.log(nextBump);
+            try {
+                const signerAddress = await PublicKey.createProgramAddress(
+                    [multisigKey.publicKey.toBuffer(), Buffer.from([nextBump])],
+                    program.programId
+                );
+                // console.log(`bump: ${nextBump} produces an address off-curve: ${signerAddress}`);
+                break;
+            } catch (error) {
+                // console.log(`bump: ${nextBump} produces an address on-curve... skipping`);
+                continue;
+            }
+        }
+
+        if (nextBump < 0) {
+            assert.fail("Could not find next bump");
+        }
+
+        let expectedError: AnchorError | null = null;
+
+        try {
+            // create multisig
+            await program.methods
+                .createMultisig(owners, new BN(threshold), nextBump, label)
+                .accounts({
+                    proposer: owner1Key.publicKey,
+                    multisig: multisigKey.publicKey,
+                    settings,
+                    opsAccount: MEAN_MULTISIG_OPS,
+                    systemProgram: SystemProgram.programId,
+                })
+                .signers([owner1Key, multisigKey])
+                .rpc();
+            assert.fail("The statements above should fail");
+        } catch (error) {
+            // console.log(error);
+            expectedError = error as AnchorError;
+        }
+        assert.isNotEmpty(expectedError);
+        assert.equal(expectedError?.error.errorCode.code, 'InvalidMultisigNonce');
+        assert.equal(expectedError?.error.errorCode.number, 6011);
+        assert.equal(expectedError?.error.errorMessage, 'Multisig nonce is not valid.');
+    });
+
+    it("fails to create multisig with bump that producess on-curve signer address", async () => {
+
+        const label = 'Test invalid bump';
+        const threshold = new BN(2);
+        const owners = [
+            {
+                address: owner1Key.publicKey,
+                name: "owner1"
+            },
+            {
+                address: owner2Key.publicKey,
+                name: "owner2"
+            },
+            {
+                address: owner3Key.publicKey,
+                name: "owner3"
+            }
+        ];
+
+        const multisigKey = Keypair.generate();
+
+        // find next possible bump
+        let nextBump = 255;
+        for (nextBump; nextBump >= 0; nextBump--) {
+            // console.log(nextBump);
+            try {
+                const signerAddress = await PublicKey.createProgramAddress(
+                    [multisigKey.publicKey.toBuffer(), Buffer.from([nextBump])],
+                    program.programId
+                );
+                // console.log(`bump: ${nextBump} produces an address off-curve: ${signerAddress}`);
+                continue;
+            } catch (error) {
+                // console.log(`bump: ${nextBump} produces an address on-curve... skipping`);
+                break;
+            }
+        }
+
+        if (nextBump < 0) {
+            assert.fail("Could not find next bump");
+        }
+
+        let expectedError: AnchorError | null = null;
+
+        try {
+            // create multisig
+            await program.methods
+                .createMultisig(owners, new BN(threshold), nextBump, label)
+                .accounts({
+                    proposer: owner1Key.publicKey,
+                    multisig: multisigKey.publicKey,
+                    settings,
+                    opsAccount: MEAN_MULTISIG_OPS,
+                    systemProgram: SystemProgram.programId,
+                })
+                .signers([owner1Key, multisigKey])
+                .rpc();
+            assert.fail("The statements above should fail");
+        } catch (error) {
+            // console.log(error);
+            expectedError = error as AnchorError;
+        }
+        assert.isNotEmpty(expectedError);
+        assert.equal(expectedError?.error.errorCode.code, 'InvalidMultisigNonce');
+        assert.equal(expectedError?.error.errorCode.number, 6011);
+        assert.equal(expectedError?.error.errorMessage, 'Multisig nonce is not valid.');
+    });
+
+    it("creates proposal with replacements", async () => {
+
+        const multisig = Keypair.generate();
+        const transaction = Keypair.generate();
+        const [txDetailAddress] = await PublicKey.findProgramAddress(
+            [multisig.publicKey.toBuffer(), transaction.publicKey.toBuffer()],
+            program.programId
+        );
+        const owner1Key = Keypair.generate();
+        await fundWallet(provider, owner1Key);
+        const label = 'Test';
+        const threshold = new BN(1);
+        const owners = [
+            {
+                address: owner1Key.publicKey,
+                name: "owner1"
+            },
+        ];
+        const [multisigSigner, nonce] = await PublicKey.findProgramAddress(
+            [multisig.publicKey.toBuffer()],
+            program.programId
+        );
+
+        // create transaction with multiple instructions
+        const rent = await provider.connection.getMinimumBalanceForRentExemption(100);
+
+        const ix1 = SystemProgram.createAccount({
+            /** The account that will transfer lamports to the created account */
+            fromPubkey: provider.wallet.publicKey,
+            /** Public key of the created account */
+            newAccountPubkey: ACCOUNT_REPLACEMENT_PLACEHOLDER,
+            /** Amount of lamports to transfer to the created account */
+            lamports: rent,
+            /** Amount of space in bytes to allocate to the created account */
+            space: 100,
+            /** Public key of the program to assign as the owner of the created account */
+            programId: SystemProgram.programId
+        });
+
+        const txSize = 1200;
+        const createIx = await program.account.transaction.createInstruction(
+            transaction,
+            txSize
+        );
+
+        const title = 'Test transaction';
+        const description = "This is a test transaction";
+        const operation = 1;
+
+        try {
+
+            // create multisig
+            await program.methods
+                .createMultisig(owners, new BN(threshold), nonce, label)
+                .accounts({
+                    proposer: owner1Key.publicKey,
+                    multisig: multisig.publicKey,
+                    settings,
+                    opsAccount: MEAN_MULTISIG_OPS,
+                    systemProgram: SystemProgram.programId,
+                })
+                .signers([owner1Key, multisig])
+                .rpc();
+
+            // create proposal
+            await program.methods
+                .createTransaction(
+                    ix1.programId,
+                    ix1.keys.map(key => ({ pubkey: key.pubkey, isSigner: key.isSigner, isWritable: key.isWritable })),
+                    ix1.data,
+                    operation,
+                    title,
+                    description,
+                    new BN((new Date().getTime() / 1000) + 3600),
+                    new BN(0),
+                    255
+                )
+                .preInstructions([createIx])
+                .accounts({
+                    multisig: multisig.publicKey,
+                    transaction: transaction.publicKey,
+                    transactionDetail: txDetailAddress,
+                    proposer: owner1Key.publicKey,
+                    settings,
+                    opsAccount: MEAN_MULTISIG_OPS,
+                    systemProgram: SystemProgram.programId,
+                })
+                .signers([transaction, owner1Key])
+                .rpc({
+                    commitment: 'confirmed',
+                });
+
+            // approve proposal
+            await program.methods
+                .approve()
+                .accounts({
+                    multisig: multisig.publicKey,
+                    transaction: transaction.publicKey,
+                    transactionDetail: txDetailAddress,
+                    owner: owner1Key.publicKey,
+                    systemProgram: SystemProgram.programId,
+                })
+                .signers([owner1Key])
+                .rpc(
+                    {
+                        commitment: 'confirmed',
+                    }
+                );
+
+            // execute proposal tx with replacements
+            const txAccount = await program.account.transaction.fetch(
+                transaction.publicKey,
+                'confirmed'
+            );
+
+            const replacementKeys: Keypair[] = [];
+            let remainingAccounts: {
+                pubkey: PublicKey;
+                isSigner: boolean;
+                isWritable: boolean;
+            }[] = (txAccount.accounts as TransactionAccount[])
+                // Change the signer status on the vendor signer since it's signed by the program, not the client.
+                .map((meta) => {
+                    if (meta.pubkey.equals(multisigSigner)) {
+                        return { ...meta, isSigner: false }
+                    } else if (meta.pubkey.equals(ACCOUNT_REPLACEMENT_PLACEHOLDER)) {
+                        const replacementKey = Keypair.generate();
+                        replacementKeys.push(replacementKey);
+                        return { ...meta, pubkey: replacementKey.publicKey }
+                    }
+
+                    return meta
+                })
+                .concat({
+                    pubkey: txAccount.programId,
+                    isWritable: false,
+                    isSigner: false,
+                });
+
+            await program.methods
+                .executeTransactionWithReplacements(
+                    replacementKeys.map(k => k.publicKey)
+                )
+                .accounts({
+                    multisig: multisig.publicKey,
+                    multisigSigner: multisigSigner,
+                    transaction: transaction.publicKey,
+                    transactionDetail: txDetailAddress,
+                    payer: nonOwnerKey.publicKey,
+                    systemProgram: SystemProgram.programId,
+                })
+                .signers([nonOwnerKey]) // anyone can execute once it reaches the approval threshold
+                .remainingAccounts(remainingAccounts)
+                .signers(replacementKeys)
+                .rpc(
+                    {
+                        commitment: 'confirmed',
+                    }
+                );
+
+
+            const createdAccount = await provider.connection
+                .getAccountInfo(replacementKeys[0].publicKey, { commitment: 'confirmed' });
+            assert.exists(createdAccount);
+            assert.equal(createdAccount?.lamports, rent);
+            assert.equal(createdAccount?.data.length, 100);
+        } catch (error) {
+            console.log(error);
+            throw error;
+        }
+    });
+
+    it("fails to create proposal with not enough replacements", async () => {
+
+        const multisig = Keypair.generate();
+        const transaction = Keypair.generate();
+        const [txDetailAddress] = await PublicKey.findProgramAddress(
+            [multisig.publicKey.toBuffer(), transaction.publicKey.toBuffer()],
+            program.programId
+        );
+        const owner1Key = Keypair.generate();
+        await fundWallet(provider, owner1Key);
+        const label = 'Test';
+        const threshold = new BN(1);
+        const owners = [
+            {
+                address: owner1Key.publicKey,
+                name: "owner1"
+            },
+        ];
+        const [multisigSigner, nonce] = await PublicKey.findProgramAddress(
+            [multisig.publicKey.toBuffer()],
+            program.programId
+        );
+
+        // create transaction with multiple instructions
+        const rent = await provider.connection.getMinimumBalanceForRentExemption(100);
+
+        const ix1 = SystemProgram.createAccount({
+            /** The account that will transfer lamports to the created account */
+            fromPubkey: provider.wallet.publicKey,
+            /** Public key of the created account */
+            newAccountPubkey: ACCOUNT_REPLACEMENT_PLACEHOLDER,
+            /** Amount of lamports to transfer to the created account */
+            lamports: rent,
+            /** Amount of space in bytes to allocate to the created account */
+            space: 100,
+            /** Public key of the program to assign as the owner of the created account */
+            programId: SystemProgram.programId
+        });
+
+        const txSize = 1200;
+        const createIx = await program.account.transaction.createInstruction(
+            transaction,
+            txSize
+        );
+
+        const title = 'Test transaction';
+        const description = "This is a test transaction";
+        const operation = 1;
+
+        let expectedError: AnchorError | null = null;
+        try {
+
+            // create multisig
+            await program.methods
+                .createMultisig(owners, new BN(threshold), nonce, label)
+                .accounts({
+                    proposer: owner1Key.publicKey,
+                    multisig: multisig.publicKey,
+                    settings,
+                    opsAccount: MEAN_MULTISIG_OPS,
+                    systemProgram: SystemProgram.programId,
+                })
+                .signers([owner1Key, multisig])
+                .rpc();
+
+            // create proposal
+            await program.methods
+                .createTransaction(
+                    ix1.programId,
+                    ix1.keys.map(key => ({ pubkey: key.pubkey, isSigner: key.isSigner, isWritable: key.isWritable })),
+                    ix1.data,
+                    operation,
+                    title,
+                    description,
+                    new BN((new Date().getTime() / 1000) + 3600),
+                    new BN(0),
+                    255
+                )
+                .preInstructions([createIx])
+                .accounts({
+                    multisig: multisig.publicKey,
+                    transaction: transaction.publicKey,
+                    transactionDetail: txDetailAddress,
+                    proposer: owner1Key.publicKey,
+                    settings,
+                    opsAccount: MEAN_MULTISIG_OPS,
+                    systemProgram: SystemProgram.programId,
+                })
+                .signers([transaction, owner1Key])
+                .rpc({
+                    commitment: 'confirmed',
+                });
+
+            // approve proposal
+            await program.methods
+                .approve()
+                .accounts({
+                    multisig: multisig.publicKey,
+                    transaction: transaction.publicKey,
+                    transactionDetail: txDetailAddress,
+                    owner: owner1Key.publicKey,
+                    systemProgram: SystemProgram.programId,
+                })
+                .signers([owner1Key])
+                .rpc(
+                    {
+                        commitment: 'confirmed',
+                    }
+                );
+
+            // execute proposal tx with replacements
+            const txAccount = await program.account.transaction.fetch(
+                transaction.publicKey,
+                'confirmed'
+            );
+
+            const replacementKeys: Keypair[] = [];
+            let remainingAccounts: {
+                pubkey: PublicKey;
+                isSigner: boolean;
+                isWritable: boolean;
+            }[] = (txAccount.accounts as TransactionAccount[])
+                // Change the signer status on the vendor signer since it's signed by the program, not the client.
+                .map((meta) => {
+                    if (meta.pubkey.equals(multisigSigner)) {
+                        return { ...meta, isSigner: false }
+                    } else if (meta.pubkey.equals(ACCOUNT_REPLACEMENT_PLACEHOLDER)) {
+                        const replacementKey = Keypair.generate();
+                        replacementKeys.push(replacementKey);
+                        return { ...meta, pubkey: replacementKey.publicKey }
+                    }
+
+                    return meta
+                })
+                .concat({
+                    pubkey: txAccount.programId,
+                    isWritable: false,
+                    isSigner: false,
+                });
+
+            await program.methods
+                .executeTransactionWithReplacements(
+                    []
+                )
+                .accounts({
+                    multisig: multisig.publicKey,
+                    multisigSigner: multisigSigner,
+                    transaction: transaction.publicKey,
+                    transactionDetail: txDetailAddress,
+                    payer: nonOwnerKey.publicKey,
+                    systemProgram: SystemProgram.programId,
+                })
+                .signers([nonOwnerKey]) // anyone can execute once it reaches the approval threshold
+                .remainingAccounts(remainingAccounts)
+                .signers(replacementKeys)
+                .rpc(
+                    {
+                        commitment: 'confirmed',
+                    }
+                );
+            assert.fail("The statement above should fail")
+        } catch (error) {
+            // console.log(error);
+            expectedError = error as AnchorError;
+            assert.isNotEmpty(expectedError);
+            assert.strictEqual(expectedError?.error.errorCode.code, 'NotEnoughReplacementAccounts');
+            assert.strictEqual(expectedError?.error.errorCode.number, 6016);
+            assert.strictEqual(expectedError?.error.errorMessage, 'Not enough replacement accounts.');
+        }
+    });
+
+    it("updates settings", async () => {
         const newAuthority1Key = Keypair.generate();
         const newAuthority2Key = Keypair.generate();
         const newOpsAccountKey = Keypair.generate();
@@ -424,12 +910,12 @@ describe("multisig", async () => {
             new BN(newCreateMultisigFee),
             new BN(newCreateTransactionFee)
         )
-        .accounts({
-            authority: payer,
-            settings,
-            program: program.programId,
-            programData,
-        }).rpc({ commitment: "confirmed" });
+            .accounts({
+                authority: payer,
+                settings,
+                program: program.programId,
+                programData,
+            }).rpc({ commitment: "confirmed" });
 
         let settingsAccount = await program.account.settings.fetch(
             settings,
@@ -449,14 +935,14 @@ describe("multisig", async () => {
             new BN(newCreateMultisigFee),
             new BN(newCreateTransactionFee)
         )
-        .accounts({
-            authority: newAuthority1Key.publicKey,
-            settings,
-            program: program.programId,
-            programData,
-        })
-        .signers([newAuthority1Key])
-        .rpc({ commitment: "confirmed" });
+            .accounts({
+                authority: newAuthority1Key.publicKey,
+                settings,
+                program: program.programId,
+                programData,
+            })
+            .signers([newAuthority1Key])
+            .rpc({ commitment: "confirmed" });
 
         settingsAccount = await program.account.settings.fetch(
             settings,
@@ -472,14 +958,14 @@ describe("multisig", async () => {
             new BN(newCreateMultisigFee),
             new BN(newCreateTransactionFee)
         )
-        .accounts({
-            authority: payer,
-            settings,
-            program: program.programId,
-            programData,
-        })
-        // .signers([...]) // signed with payer authomatically by anchor
-        .rpc({ commitment: "confirmed" });
+            .accounts({
+                authority: payer,
+                settings,
+                program: program.programId,
+                programData,
+            })
+            // .signers([...]) // signed with payer authomatically by anchor
+            .rpc({ commitment: "confirmed" });
 
         settingsAccount = await program.account.settings.fetch(
             settings,
@@ -497,14 +983,14 @@ describe("multisig", async () => {
                 new BN(newCreateMultisigFee),
                 new BN(newCreateTransactionFee)
             )
-            .accounts({
-                authority: newAuthority1Key.publicKey,
-                settings,
-                program: program.programId,
-                programData,
-            })
-            .signers([newAuthority1Key])
-            .rpc({ commitment: "confirmed" });
+                .accounts({
+                    authority: newAuthority1Key.publicKey,
+                    settings,
+                    program: program.programId,
+                    programData,
+                })
+                .signers([newAuthority1Key])
+                .rpc({ commitment: "confirmed" });
             assert.fail("The statements above should fail");
         } catch (error) {
             // console.log(error);
@@ -514,7 +1000,7 @@ describe("multisig", async () => {
         assert.equal(expectedError?.error.errorCode.code, 'InvalidSettingsAuthority');
         assert.equal(expectedError?.error.errorCode.number, 6015);
         assert.equal(expectedError?.error.errorMessage, 'Invalid settings authority.');
-    })
+    });
 });
 
 describe("multisig-owners", async () => {
