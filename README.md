@@ -23,17 +23,6 @@ signed.
 
 * **This code (0.9.0) is [audited](./SECURITY_AUDIT_REPORT.pdf). Audit commissioned by [Streamflow](https://github.com/streamflow-finance).**
 
-## Non-Upgradeable mainnet-beta verifiable deployed versions
-
-* Tag 0.7.0 deployed at: `msigmtwzgXJHj2ext4XJjCDmpbcMuufFb5cHuwg6Xdt`
-
-To verify: check out tag 0.7.0 and...
-```bash
-cd serum/multisig/programs/multisig
-anchor verify msigmtwzgXJHj2ext4XJjCDmpbcMuufFb5cHuwg6Xdt`
-```
-
-
 ## Developing
 
 [Anchor](https://github.com/coral-xyz/anchor) is used for developoment, and it's
