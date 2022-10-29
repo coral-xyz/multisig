@@ -36,8 +36,8 @@ anchor verify msigmtwzgXJHj2ext4XJjCDmpbcMuufFb5cHuwg6Xdt`
 
 ## Developing
 
-[Anchor](https://github.com/project-serum/anchor) is used for developoment, and it's
-recommended workflow is used here. To get started, see the [guide](https://project-serum.github.io/anchor/getting-started/introduction.html).
+[Anchor](https://github.com/coral-xyz/anchor) is used for developoment, and it's
+recommended workflow is used here. To get started, see the [guide](https://anchor-lang.com).
 
 ### Build
 
@@ -63,4 +63,4 @@ docker, `cd programs/multisig`, and run
 anchor verify <program-id | write-buffer>
 ```
 
-A list of build artifacts can be found under [releases](https://github.com/project-serum/multisig/releases).
+A list of build artifacts can be found under [releases](https://github.com/coral-xyz/multisig/releases).

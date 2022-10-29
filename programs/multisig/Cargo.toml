@@ -1,13 +1,13 @@
 [package]
-name = "serum-multisig"
+name = "coral-multisig"
 version = "0.9.0"
 description = "Created with Anchor"
-edition = "2018"
+edition = "2021"
 license = "Apache-2.0"
 
 [lib]
 crate-type = ["cdylib", "lib"]
-name = "serum_multisig"
+name = "coral_multisig"
 
 [features]
 no-entrypoint = []
@@ -16,4 +16,4 @@ cpi = ["no-entrypoint"]
 default = []
 
 [dependencies]
-anchor-lang = "0.24.2"
+anchor-lang = "0.25.0"
