@@ -1,17 +1,21 @@
-anchor_version = "0.24.2"
+[features]
+seeds = true
+
+[programs.mainnet]
+coral_multisig = "msigUdDBsR4zSUYqYEDrc1LcgtmuSDDM7KxpRUXNC6U"
+
+[programs.devnet]
+coral_multisig = "msigUdDBsR4zSUYqYEDrc1LcgtmuSDDM7KxpRUXNC6U"
+
+[programs.localnet]
+coral_multisig = "msigUdDBsR4zSUYqYEDrc1LcgtmuSDDM7KxpRUXNC6U"
+
+[registry]
+url = "https://api.apr.dev"
 
 [provider]
 cluster = "localnet"
 wallet = "~/.config/solana/id.json"
-
-[programs.mainnet]
-serum_multisig = "6tbPiQLgTU4ySYWyZGXbnVSAEzLc1uF8t5kJPXXgBmRP"
-
-[programs.devnet]
-serum_multisig = "F3Uf5F61dmht1xuNNNkk3jnzj82TY56vVjVEhZALRkN"
-
-[programs.localnet]
-serum_multisig = "6tbPiQLgTU4ySYWyZGXbnVSAEzLc1uF8t5kJPXXgBmRP"
 
 [scripts]
 test = "npx mocha -t 1000000 tests/"

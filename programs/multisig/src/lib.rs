@@ -23,10 +23,10 @@ use anchor_lang::solana_program::instruction::Instruction;
 use std::convert::Into;
 use std::ops::Deref;
 
-declare_id!("6tbPiQLgTU4ySYWyZGXbnVSAEzLc1uF8t5kJPXXgBmRP");
+declare_id!("msigUdDBsR4zSUYqYEDrc1LcgtmuSDDM7KxpRUXNC6U");
 
 #[program]
-pub mod serum_multisig {
+pub mod coral_multisig {
     use super::*;
 
     // Initializes a new multisig account with a set of owners and a threshold.

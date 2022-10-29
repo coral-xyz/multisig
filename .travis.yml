@@ -5,8 +5,8 @@ rust:
 env:
   global:
     - NODE_VERSION="v14.7.0"
-    - SOLANA_VERSION="v1.9.13"
-    - ANCHOR_VERSION="v0.24.2"
+    - SOLANA_VERSION="v1.10.29"
+    - ANCHOR_VERSION="v0.25.0"
 
 cache:
   directories:
@@ -26,18 +26,18 @@ cache:
 before_deploy:
   - anchor build --verifiable
   - echo "### SHA256 Checksums" > release_notes.md
-  - sha256sum target/deploy/serum_multisig.so > binary.txt
-  - sha256sum target/idl/serum_multisig.json > idl.txt
+  - sha256sum target/deploy/coral_multisig.so > binary.txt
+  - sha256sum target/idl/coral_multisig.json > idl.txt
   - cat *.txt >> release_notes.md
   - echo "" >> release_notes.md
-  - echo "Built with Anchor [${ANCHOR_VERSION}](https://github.com/project-serum/anchor/releases/tag/${ANCHOR_VERSION})." >> release_notes.md
+  - echo "Built with Anchor [${ANCHOR_VERSION}](https://github.com/coral-xyz/anchor/releases/tag/${ANCHOR_VERSION})." >> release_notes.md
 
 deploy:
   provider: releases
   edge: true
   file:
-    - "target/deploy/serum_multisig.so"
-    - "target/idl/serum_multisig.json"
+    - "target/deploy/coral_multisig.so"
+    - "target/idl/coral_multisig.json"
   release_notes_file: release_notes.md
   skip_cleanup: true
   on:
