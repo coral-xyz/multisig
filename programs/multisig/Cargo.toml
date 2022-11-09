@@ -1,8 +1,8 @@
 [package]
 name = "mean-multisig"
 version = "1.14.0"
-description = "Created with Anchor"
-edition = "2018"
+description = "Mean multisig program"
+edition = "2021"
 license = "Apache-2.0"
 
 [lib]
@@ -14,7 +14,8 @@ no-entrypoint = []
 no-idl = []
 cpi = ["no-entrypoint"]
 default = []
+devnet = []
 
 [dependencies]
-anchor-lang = { version = "^0.24.2", features = ["init-if-needed"] }
-solana-program = "~1.9.29"
+anchor-lang = { version = "0.25.0", features = ["init-if-needed"] }
+solana-program = "1.10.29"

@@ -3,18 +3,19 @@
 // configured from the workspace's Anchor.toml.
 
 
-const { PublicKey, SystemProgram } = require('@solana/web3.js');
-const anchor = require('@project-serum/anchor');
+import { PublicKey, SystemProgram } from '@solana/web3.js';
+import * as anchor from "@project-serum/anchor";
+import { MeanMultisig } from "../target/types/mean_multisig"; 
 
 
-module.exports = async function (provider) {
+module.exports = async function (provider: anchor.Provider) {
   // Configure client to use the provider.
   anchor.setProvider(provider);
 
   // Add your deploy script here.
 
   // Program client handle.
-  const program = anchor.workspace.MeanMultisig;
+  const program = anchor.workspace.MeanMultisigas as anchor.Program<MeanMultisig>;
   console.log(`program ID: ${program.programId}`);
   
 
@@ -29,8 +30,8 @@ module.exports = async function (provider) {
   await program.methods
     .initSettings()
     .accounts({
-      payer: (program.provider).wallet.publicKey,
-      authority: (program.provider).wallet.publicKey,
+      payer: (program.provider as anchor.AnchorProvider).wallet.publicKey,
+      authority: (program.provider as anchor.AnchorProvider).wallet.publicKey,
       program: program.programId,
       programData,
       settings,

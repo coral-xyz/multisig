@@ -21,6 +21,13 @@ use anchor_lang::prelude::*;
 use anchor_lang::solana_program::instruction::Instruction;
 use std::ops::Deref;
 
+pub mod account_replacement_placeholder {
+    anchor_lang::declare_id!("NewPubkey1111111111111111111111111111111111");
+}
+
+#[cfg(feature = "devnet")]
+declare_id!("MMSdTDhtwBs2w4MxGCbqfWLgerMQNbXazizghoh7uMJ");
+#[cfg(not(feature = "devnet"))]
 declare_id!("FF7U7Vj1PpBkTPau7frwLLrUHrjkxTQLsH7U5K3T3B3j");
 
 #[program]
@@ -37,6 +44,16 @@ pub mod mean_multisig {
         label: String
 
     ) -> Result<()> {
+
+        let (_expected_signer_address, expected_bump) =
+            Pubkey::find_program_address(
+                &[ctx.accounts.multisig.key().to_bytes().as_ref()],
+                ctx.program_id
+            );
+
+        if expected_bump != nonce {
+            return Err(ErrorCode::InvalidMultisigNonce.into());
+        }
 
         assert_unique_owners(&owners)?;
         require!(threshold > 0 && threshold <= owners.len() as u64, InvalidThreshold);
@@ -132,8 +149,8 @@ pub mod mean_multisig {
         title: String,
         description: String,
         expiration_date: u64,
-        pda_timestamp: u64,
-        pda_bump: u8
+        _pda_timestamp: u64, // deprecated
+        _pda_bump: u8 // deprecated
 
     ) -> Result<()> {
 
@@ -163,14 +180,9 @@ pub mod mean_multisig {
         tx.operation = operation;
         // tx.keypairs = keypairs; // deprecated
         tx.proposer = ctx.accounts.proposer.key();
-        // These to fields are optional since all Txs doesn't need to create a PDA account
-        tx.pda_timestamp = pda_timestamp;
-        tx.pda_bump = pda_bump;
 
         let tx_detail = &mut ctx.accounts.transaction_detail;
         // Save transaction detail
-        // tx_detail.multisig = ctx.accounts.multisig.key();
-        // tx_detail.transaction = ctx.accounts.transaction.key();
         tx_detail.title = string_to_array_64(&title);
         tx_detail.description = string_to_array_512(&description);
         tx_detail.expiration_date = expiration_date;
@@ -330,7 +342,10 @@ pub mod mean_multisig {
     }
 
     /// Executes the given transaction if threshold owners have signed it.
-    pub fn execute_transaction_pda(ctx: Context<ExecuteTransactionPda>) -> Result<()> {
+    pub fn execute_transaction_with_replacements(
+        ctx: Context<ExecuteTransaction>,
+        replacement_accounts: Vec<Pubkey>
+    ) -> Result<()> {
 
         // Has this been executed already?
         if ctx.accounts.transaction.executed_on > 0 {
@@ -341,7 +356,7 @@ pub mod mean_multisig {
         let now = Clock::get()?.unix_timestamp as u64;
 
         if ctx.accounts.transaction_detail.expiration_date > 0 && 
-           ctx.accounts.transaction_detail.expiration_date < now 
+        ctx.accounts.transaction_detail.expiration_date < now 
         {
             return Err(ErrorCode::AlreadyExpired.into());
         }
@@ -361,35 +376,37 @@ pub mod mean_multisig {
 
         // Execute the transaction signed by the multisig.
         let mut ix: Instruction = (*ctx.accounts.transaction).deref().into();
-        ix.accounts = ix
-            .accounts
-            .iter()
-            .map(|acc| {
-                let mut acc = acc.clone();
-                if &acc.pubkey == ctx.accounts.multisig_signer.to_account_info().key ||
-                   &acc.pubkey == ctx.accounts.pda_account.to_account_info().key 
-                {
-                    acc.is_signer = true;
+        let mut last_replacement_account_index_used = 0;
+        let mut mapped_accounts = vec!();
+        
+        for acc in ix.accounts.iter() {
+            let mut acc = acc.clone();
+            if &acc.pubkey == ctx.accounts.multisig_signer.to_account_info().key {
+                acc.is_signer = true;
+            } else if acc.pubkey == account_replacement_placeholder::ID {
+                if last_replacement_account_index_used == replacement_accounts.len() {
+                    return Err(ErrorCode::NotEnoughReplacementAccounts.into());
                 }
-                acc
-            })
-            .collect();
+                let replacement_account = replacement_accounts
+                    .get(last_replacement_account_index_used)
+                    .unwrap();
+                acc.pubkey = *replacement_account;
+                acc.is_signer = true;
+                last_replacement_account_index_used = last_replacement_account_index_used + 1;
+            }
+            mapped_accounts.push(acc);
+        }
+        ix.accounts = mapped_accounts;
 
-        let transaction_seeds = &[
+        let seeds = &[
             ctx.accounts.multisig.to_account_info().key.as_ref(),            
             &[ctx.accounts.multisig.nonce],
         ];
 
-        let pda_seeds = &[
-            ctx.accounts.multisig.to_account_info().key.as_ref(),
-            &ctx.accounts.transaction.pda_timestamp.to_le_bytes(),
-            &[ctx.accounts.transaction.pda_bump],
-        ];
-
-        let signers = &[&transaction_seeds[..], &pda_seeds[..]];
+        let signer = &[&seeds[..]];
         let accounts = ctx.remaining_accounts;
-        let _ = solana_program::program::invoke_signed(&ix, accounts, signers)?;
-        let _ = ctx.accounts.multisig.reload()?;
+        solana_program::program::invoke_signed(&ix, accounts, signer)?;
+        ctx.accounts.multisig.reload()?;
         // Burn the transaction to ensure one time use.
         ctx.accounts.transaction.executed_on = Clock::get()?.unix_timestamp as u64;
 
@@ -402,14 +419,28 @@ pub mod mean_multisig {
         Ok(())
     }
 
+    pub fn init_settings(ctx: Context<InitSettings>) -> Result<()> {
+
+        ctx.accounts.settings.version = 1u8;
+        ctx.accounts.settings.bump = ctx.bumps["settings"];
+        ctx.accounts.settings.authority = ctx.accounts.authority.key();
+        ctx.accounts.settings.ops_account = "3TD6SWY9M1mLY2kZWJNavPLhwXvcRsWdnZLRaMzERJBw".parse().unwrap();
+        ctx.accounts.settings.create_multisig_fee = 20_000_000;
+        ctx.accounts.settings.create_transaction_fee = 20_000_000;
+
+        Ok(())
+    }
+
     pub fn update_settings(
         ctx: Context<UpdateSettings>, 
-        ops_account: Pubkey, 
+        authority: Pubkey,
+        ops_account: Pubkey,
         create_multisig_fee: u64,
         create_transaction_fee: u64,
 
     ) -> Result<()> {
 
+        ctx.accounts.settings.authority = authority;
         ctx.accounts.settings.ops_account = ops_account;
         ctx.accounts.settings.create_multisig_fee = create_multisig_fee;
         ctx.accounts.settings.create_transaction_fee = create_transaction_fee;
@@ -570,7 +601,7 @@ pub struct ExecuteTransaction<'info> {
         constraint = multisig.owner_set_seqno == transaction.owner_set_seqno @ ErrorCode::InvalidOwnerSetSeqNumber
     )]
     multisig: Box<Account<'info, MultisigV2>>,
-    /// CHECK: `doc comment explaining why no checks through types are necessary`
+    /// CHECK: multisig_signer is a PDA program signer. Data is never read or written to
     #[account(
         seeds = [multisig.key().as_ref()],
         bump = multisig.nonce,
@@ -586,46 +617,31 @@ pub struct ExecuteTransaction<'info> {
         space = 8 + 584 // discriminator + account size
     )]
     transaction_detail: Box<Account<'info, TransactionDetail>>,
-    // One of the multisig owners. Checked in the handler.
     #[account(mut)]
     payer: Signer<'info>,
     system_program: Program<'info, System>
 }
 
 #[derive(Accounts)]
-pub struct ExecuteTransactionPda<'info> {
-    /// CHECK: multisig_signer is a PDA program signer. Data is never read or written to
-    #[account(
-        mut,
-        constraint = multisig.owner_set_seqno == transaction.owner_set_seqno @ ErrorCode::InvalidOwnerSetSeqNumber
-    )]
-    multisig: Box<Account<'info, MultisigV2>>,
-    /// CHECK: `doc comment explaining why no checks through types are necessary`
-    #[account(
-        seeds = [multisig.key().as_ref()],
-        bump = multisig.nonce,
-    )]
-    multisig_signer: UncheckedAccount<'info>,
-    /// CHECK: `doc comment explaining why no checks through types are necessary`
-    #[account(
-        mut,
-        seeds = [multisig.key().as_ref(), &transaction.pda_timestamp.to_le_bytes()],
-        bump = transaction.pda_bump,
-    )]
-    pda_account: UncheckedAccount<'info>,
-    #[account(mut, has_one = multisig)]
-    transaction: Box<Account<'info, Transaction>>,
-    #[account(
-        init_if_needed,
-        payer = payer,
-        seeds = [multisig.key().as_ref(), transaction.key().as_ref()],
-        bump,
-        space = 8 + 584 // discriminator + account size
-    )]
-    transaction_detail: Box<Account<'info, TransactionDetail>>,
-    // One of the multisig owners. Checked in the handler.
+pub struct InitSettings<'info> {
     #[account(mut)]
     payer: Signer<'info>,
+    #[account()]
+    authority: Signer<'info>,
+    #[account(
+        init,
+        payer=payer,
+        seeds = [b"settings"],
+        bump,
+        space = 200
+    )]
+    settings: Account<'info, Settings>,
+    #[account(constraint = program.programdata_address()? == Some(program_data.key()))]
+    program: Program<'info, crate::program::MeanMultisig>,
+    #[account(
+        constraint = program_data.upgrade_authority_address == Some(authority.key()) @ ErrorCode::InvalidSettingsAuthority
+    )]
+    program_data: Account<'info, ProgramData>,
     system_program: Program<'info, System>
 }
 
@@ -641,7 +657,11 @@ pub struct UpdateSettings<'info> {
     settings: Account<'info, Settings>,
     #[account(constraint = program.programdata_address()? == Some(program_data.key()))]
     program: Program<'info, crate::program::MeanMultisig>,
-    #[account(constraint = program_data.upgrade_authority_address == Some(authority.key()))]
+    #[account(
+        constraint = authority.key() == settings.authority || 
+            program_data.upgrade_authority_address == Some(authority.key())
+            @ ErrorCode::InvalidSettingsAuthority
+    )]
     program_data: Account<'info, ProgramData>,
 }
 
@@ -701,8 +721,10 @@ pub struct Transaction {
     pub keypairs: Vec<[u8; 64]>,
     /// The proposer of the transaction
     pub proposer: Pubkey,
+    #[deprecated]
     /// The timestamp used as part of the seed of the PDA account
     pub pda_timestamp: u64,
+    #[deprecated]
     /// The bump used to derive the PDA account
     pub pda_bump: u8
 }
@@ -832,7 +854,7 @@ pub enum ErrorCode {
     NotEnoughSigners,
     #[msg("Cannot delete a transaction that has been signed by an owner.")]
     TransactionAlreadySigned,
-    #[msg("Operation overflow")]
+    #[msg("Operation overflow.")]
     Overflow,
     #[msg("Cannot delete a transaction the owner did not create.")]
     UnableToDelete,
@@ -853,5 +875,9 @@ pub enum ErrorCode {
     #[msg("Multisig owner set secuency number is not valid.")]
     InvalidOwnerSetSeqNumber,
     #[msg("Multisig account is not valid.")]
-    InvalidMultisig
+    InvalidMultisig,
+    #[msg("Invalid settings authority.")]
+    InvalidSettingsAuthority,
+    #[msg("Not enough replacement accounts.")]
+    NotEnoughReplacementAccounts
 }
