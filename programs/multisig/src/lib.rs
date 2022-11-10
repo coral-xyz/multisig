@@ -25,6 +25,8 @@ pub mod account_replacement_placeholder {
     anchor_lang::declare_id!("NewPubkey1111111111111111111111111111111111");
 }
 
+pub const MAX_FEE_LAMPORTS: u64 = 10_000_000_000;
+
 #[cfg(feature = "devnet")]
 declare_id!("MMSdTDhtwBs2w4MxGCbqfWLgerMQNbXazizghoh7uMJ");
 #[cfg(not(feature = "devnet"))]
@@ -439,6 +441,11 @@ pub mod mean_multisig {
         create_transaction_fee: u64,
 
     ) -> Result<()> {
+
+        if create_multisig_fee > MAX_FEE_LAMPORTS || 
+            create_transaction_fee > MAX_FEE_LAMPORTS {
+                return Err(ErrorCode::FeeExceedsMaximumAllowed.into());
+        }
 
         ctx.accounts.settings.authority = authority;
         ctx.accounts.settings.ops_account = ops_account;
@@ -879,5 +886,7 @@ pub enum ErrorCode {
     #[msg("Invalid settings authority.")]
     InvalidSettingsAuthority,
     #[msg("Not enough replacement accounts.")]
-    NotEnoughReplacementAccounts
+    NotEnoughReplacementAccounts,
+    #[msg("Fee amount exceeds the maximum allowed.")]
+    FeeExceedsMaximumAllowed
 }
