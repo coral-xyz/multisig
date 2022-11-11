@@ -1000,6 +1000,54 @@ describe("multisig", async () => {
         assert.equal(expectedError?.error.errorCode.code, 'InvalidSettingsAuthority');
         assert.equal(expectedError?.error.errorCode.number, 6015);
         assert.equal(expectedError?.error.errorMessage, 'Invalid settings authority.');
+
+        try {
+            await program.methods.updateSettings(
+                newAuthority1Key.publicKey,
+                newOpsAccountKey.publicKey,
+                new BN(10_000_000_001), // <-- passing more than 10 SOL (max fee allowed)
+                new BN(newCreateTransactionFee)
+            )
+                .accounts({
+                    authority: payer,
+                    settings,
+                    program: program.programId,
+                    programData,
+                })
+                .rpc({ commitment: "confirmed" });
+            assert.fail("The statements above should fail");
+        } catch (error) {
+            // console.log(error);
+            expectedError = error as AnchorError;
+        }
+        assert.isNotEmpty(expectedError);
+        assert.equal(expectedError?.error.errorCode.code, 'FeeExceedsMaximumAllowed');
+        assert.equal(expectedError?.error.errorCode.number, 6017);
+        assert.equal(expectedError?.error.errorMessage, 'Fee amount exceeds the maximum allowed.');
+
+        try {
+            await program.methods.updateSettings(
+                newAuthority1Key.publicKey,
+                newOpsAccountKey.publicKey,
+                new BN(newCreateMultisigFee),
+                new BN(10_000_000_001) // <-- passing more than 10 SOL (max fee allowed)
+            )
+                .accounts({
+                    authority: payer,
+                    settings,
+                    program: program.programId,
+                    programData,
+                })
+                .rpc({ commitment: "confirmed" });
+            assert.fail("The statements above should fail");
+        } catch (error) {
+            // console.log(error);
+            expectedError = error as AnchorError;
+        }
+        assert.isNotEmpty(expectedError);
+        assert.equal(expectedError?.error.errorCode.code, 'FeeExceedsMaximumAllowed');
+        assert.equal(expectedError?.error.errorCode.number, 6017);
+        assert.equal(expectedError?.error.errorMessage, 'Fee amount exceeds the maximum allowed.');
     });
 });
 
