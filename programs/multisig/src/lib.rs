@@ -154,6 +154,16 @@ pub mod coral_multisig {
             return Err(ErrorCode::AlreadyExecuted.into());
         }
 
+        // Is this wallet a owner of the multisig?
+        ctx
+            .accounts
+            .multisig
+            .owners
+            .iter()
+            .position(|a| a == ctx.accounts.owner.key)
+            .ok_or(ErrorCode::InvalidOwner)?;
+
+
         // Do we have enough signers.
         let sig_count = ctx
             .accounts
@@ -240,6 +250,8 @@ pub struct ExecuteTransaction<'info> {
     multisig_signer: UncheckedAccount<'info>,
     #[account(mut, has_one = multisig)]
     transaction: Box<Account<'info, Transaction>>,
+     // One of the multisig owners. Checked in the handler.
+    owner: Signer<'info>,
 }
 
 #[account]
