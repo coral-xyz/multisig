@@ -59,6 +59,13 @@ pub mod coral_multisig {
         accs: Vec<TransactionAccount>,
         data: Vec<u8>,
     ) -> Result<()> {
+        // Refuses transaction that do not include the multisig signer account.
+        let multisig_signer = accs
+            .iter()
+            .find(|a| a.pubkey == *ctx.accounts.multisig_signer.key)
+            .ok_or(ErrorCode::TransactionMissingMultisig)?;
+        require!(multisig_signer.is_signer, ErrorCode::MultisigNotSigner);
+
         let owner_index = ctx
             .accounts
             .multisig
@@ -166,19 +173,7 @@ pub mod coral_multisig {
             return Err(ErrorCode::NotEnoughSigners.into());
         }
 
-        // Execute the transaction signed by the multisig.
-        let mut ix: Instruction = (*ctx.accounts.transaction).deref().into();
-        ix.accounts = ix
-            .accounts
-            .iter()
-            .map(|acc| {
-                let mut acc = acc.clone();
-                if &acc.pubkey == ctx.accounts.multisig_signer.key {
-                    acc.is_signer = true;
-                }
-                acc
-            })
-            .collect();
+        let ix: Instruction = (*ctx.accounts.transaction).deref().into();
         let multisig_key = ctx.accounts.multisig.key();
         let seeds = &[multisig_key.as_ref(), &[ctx.accounts.multisig.nonce]];
         let signer = &[&seeds[..]];
@@ -203,6 +198,12 @@ pub struct CreateTransaction<'info> {
     multisig: Box<Account<'info, Multisig>>,
     #[account(zero, signer)]
     transaction: Box<Account<'info, Transaction>>,
+    /// CHECK: multisig_signer is a PDA program signer. Data is never read or written to
+    #[account(
+        seeds = [multisig.key().as_ref()],
+        bump = multisig.nonce,
+    )]
+    multisig_signer: UncheckedAccount<'info>,
     // One of the owners. Checked in the handler.
     proposer: Signer<'info>,
 }
@@ -232,12 +233,6 @@ pub struct Auth<'info> {
 pub struct ExecuteTransaction<'info> {
     #[account(constraint = multisig.owner_set_seqno == transaction.owner_set_seqno)]
     multisig: Box<Account<'info, Multisig>>,
-    /// CHECK: multisig_signer is a PDA program signer. Data is never read or written to
-    #[account(
-        seeds = [multisig.key().as_ref()],
-        bump = multisig.nonce,
-    )]
-    multisig_signer: UncheckedAccount<'info>,
     #[account(mut, has_one = multisig)]
     transaction: Box<Account<'info, Transaction>>,
 }
@@ -332,6 +327,10 @@ pub enum ErrorCode {
     AlreadyExecuted,
     #[msg("Threshold must be less than or equal to the number of owners.")]
     InvalidThreshold,
-    #[msg("Owners must be unique")]
+    #[msg("Owners must be unique.")]
     UniqueOwners,
+    #[msg("Transaction does not include the multisig signer account.")]
+    TransactionMissingMultisig,
+    #[msg("Multisig PDA is not a signer.")]
+    MultisigNotSigner,
 }
