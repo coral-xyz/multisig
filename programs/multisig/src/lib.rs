@@ -144,6 +144,8 @@ pub mod coral_multisig {
         }
         let multisig = &mut ctx.accounts.multisig;
         multisig.threshold = threshold;
+        multisig.owner_set_seqno += 1;
+
         Ok(())
     }
 
