@@ -69,6 +69,7 @@ describe("multisig", () => {
         multisig: multisig.publicKey,
         transaction: transaction.publicKey,
         proposer: ownerA.publicKey,
+        multisigSigner
       },
       instructions: [
         await program.account.transaction.createInstruction(
@@ -104,7 +105,6 @@ describe("multisig", () => {
     await program.rpc.executeTransaction({
       accounts: {
         multisig: multisig.publicKey,
-        multisigSigner,
         transaction: transaction.publicKey,
       },
       remainingAccounts: program.instruction.setOwners
@@ -165,7 +165,7 @@ describe("multisig", () => {
     } catch (err) {
       const error = err.error;
       assert.strictEqual(error.errorCode.number, 6008);
-      assert.strictEqual(error.errorMessage, "Owners must be unique");
+      assert.strictEqual(error.errorMessage, "Owners must be unique.");
     }
   });
 });
