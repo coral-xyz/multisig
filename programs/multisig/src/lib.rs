@@ -36,6 +36,10 @@ pub mod coral_multisig {
         threshold: u64,
         nonce: u8,
     ) -> Result<()> {
+        let multisig_key = ctx.accounts.multisig.key();
+        let seeds = &[multisig_key.as_ref(), &[nonce]];
+        require!(Pubkey::create_program_address(&seeds[..], &ID).is_ok(), ErrorCode::InvalidNonce);
+
         assert_unique_owners(&owners)?;
         require!(
             threshold > 0 && threshold <= owners.len() as u64,
@@ -334,4 +338,6 @@ pub enum ErrorCode {
     InvalidThreshold,
     #[msg("Owners must be unique")]
     UniqueOwners,
+    #[msg("Invalid nonce.")]
+    InvalidNonce,
 }
