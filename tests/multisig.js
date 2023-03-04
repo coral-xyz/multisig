@@ -1,9 +1,11 @@
 const anchor = require("@project-serum/anchor");
+const token = require("@solana/spl-token");
 const assert = require("assert");
 
 describe("multisig", () => {
   // Configure the client to use the local cluster.
-  anchor.setProvider(anchor.getProvider());
+  const provider = anchor.getProvider();
+  anchor.setProvider(provider);
 
   const program = anchor.workspace.CoralMultisig;
 
@@ -167,5 +169,153 @@ describe("multisig", () => {
       assert.strictEqual(error.errorCode.number, 6008);
       assert.strictEqual(error.errorMessage, "Owners must be unique");
     }
+  });
+
+  it("Can transfer tokens", async () => {
+    const multisig = anchor.web3.Keypair.generate();
+    const [multisigSigner, nonce] =
+      await anchor.web3.PublicKey.findProgramAddress(
+        [multisig.publicKey.toBuffer()],
+        program.programId
+      );
+    const multisigSize = 200; 
+
+    const ownerA = anchor.web3.Keypair.generate();
+    const ownerB = anchor.web3.Keypair.generate();
+    const owners = [ownerA.publicKey, ownerB.publicKey];
+
+    const threshold = new anchor.BN(1);
+    await program.rpc.createMultisig(owners, threshold, nonce, {
+      accounts: {
+        multisig: multisig.publicKey,
+      },
+      instructions: [
+        await program.account.multisig.createInstruction(
+          multisig,
+          multisigSize
+        ),
+      ],
+      signers: [multisig],
+    });
+
+    let multisigAccount = await program.account.multisig.fetch(
+      multisig.publicKey
+    );
+    assert.strictEqual(multisigAccount.nonce, nonce);
+    assert.ok(multisigAccount.threshold.eq(new anchor.BN(1)));
+    assert.deepStrictEqual(multisigAccount.owners, owners);
+    assert.ok(multisigAccount.ownerSetSeqno === 0);
+
+    const connection = provider.connection;
+    const mintAuthority = anchor.web3.Keypair.generate();
+    const payee = anchor.web3.Keypair.generate();
+    const decimals = 2;
+    const startingAmount = 250;
+    const transferAmount = 50;
+    
+    const mint = await token.createMint(
+      connection,
+      provider.wallet.payer,
+      mintAuthority.publicKey,
+      null,
+      decimals
+    );
+
+    const multisigTokenAccount = (await token.getOrCreateAssociatedTokenAccount(
+      connection,
+      provider.wallet.payer,
+      mint,
+      multisigSigner,
+      true
+    )).address;
+
+    const payeeTokenAccount = await token.createAssociatedTokenAccount(
+      connection,
+      provider.wallet.payer,
+      mint,
+      payee.publicKey 
+    );
+
+    await token.mintTo(
+      connection,
+      provider.wallet.payer,
+      mint,
+      multisigTokenAccount,
+      mintAuthority,
+      startingAmount
+    );
+
+    const transferInstruction = await token.createTransferInstruction(
+      multisigTokenAccount,
+      payeeTokenAccount,
+      multisigSigner,
+      transferAmount
+    );
+
+    const pid = transferInstruction.programId;
+    const accounts = transferInstruction.keys;
+    const data = transferInstruction.data;
+    
+    const transaction = anchor.web3.Keypair.generate();
+    const txSize = 1000; 
+    await program.rpc.createTransaction(pid, accounts, data, {
+      accounts: {
+        multisig: multisig.publicKey,
+        transaction: transaction.publicKey,
+        proposer: ownerA.publicKey,
+      },
+      instructions: [
+        await program.account.transaction.createInstruction(
+          transaction,
+          txSize
+        ),
+      ],
+      signers: [transaction, ownerA],
+    });
+    const txAccount = await program.account.transaction.fetch(
+      transaction.publicKey
+    );
+
+    assert.ok(txAccount.programId.equals(pid));
+    assert.deepStrictEqual(txAccount.accounts, accounts);
+    assert.deepStrictEqual(txAccount.data, data);
+    assert.ok(txAccount.multisig.equals(multisig.publicKey));
+    assert.deepStrictEqual(txAccount.didExecute, false);
+
+    await program.rpc.executeTransaction({
+      accounts: {
+        multisig: multisig.publicKey,
+        multisigSigner,
+        transaction: transaction.publicKey,
+      },
+      remainingAccounts: 
+        accounts
+        // Change the signer status on the vendor signer since it's signed by the program, not the client.
+        .map((meta) =>
+          meta.pubkey.equals(multisigSigner)
+            ? { ...meta, isSigner: false }
+            : meta
+        )
+        .concat({
+          pubkey: pid, 
+          isWritable: false,
+          isSigner: false,
+        }),
+    });
+
+    const multisigTokenAccountPostExec = await token.getAccount(
+      connection,
+      multisigTokenAccount
+    );
+    const payeeTokenAccountPostExec = await token.getAccount(
+      connection,
+      payeeTokenAccount
+    );
+
+    assert.equal(multisigTokenAccountPostExec.amount, 
+      startingAmount - transferAmount);
+    assert.equal(payeeTokenAccountPostExec.amount, transferAmount);
+    assert.strictEqual(multisigAccount.nonce, nonce);
+    assert.strictEqual(multisigAccount.ownerSetSeqno, 0);
   });
 });
