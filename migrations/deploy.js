@@ -4,7 +4,7 @@
 
 
 const { PublicKey, SystemProgram } = require('@solana/web3.js');
-const anchor = require('@project-serum/anchor');
+const anchor = require('@coral-xyz/anchor');
 
 
 module.exports = async function (provider) {

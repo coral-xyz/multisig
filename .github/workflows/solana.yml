@@ -8,8 +8,8 @@ on:
   workflow_dispatch:
 
 env:
-  SOLANA_VERSION: "1.10.29"
-  ANCHOR_VERSION: "0.25.0"
+  SOLANA_VERSION: "1.13.5"
+  ANCHOR_VERSION: "0.26.0"
   RUST_TOOLCHAIN: "stable"
   NODE_VERSION: "17"
   PROGRAM_NAME: "mean_multisig"
@@ -125,8 +125,7 @@ jobs:
 
       # Install Anchor
       - name: Install Anchor
-       # A temporary workaround until 0.25.0 binary is added. See https://github.com/coral-xyz/anchor/issues/2076
-        run: yarn global add @project-serum/anchor-cli@0.24.2
+        run: yarn global add @coral-xyz/anchor-cli@0.26.0
 
       # Run tests
       - name: Cache build
@@ -232,8 +231,7 @@ jobs:
                 ${{ runner.os }}-modules-
       # Install Anchor
       - name: Install Anchor
-       # A temporary workaround until 0.25.0 binary is added. See https://github.com/coral-xyz/anchor/issues/2076
-        run: yarn global add @project-serum/anchor-cli@0.24.2
+        run: yarn global add @coral-xyz/anchor-cli@0.26.0
 
       # Deploy
       - name: Cache build
@@ -322,8 +320,7 @@ jobs:
                 ${{ runner.os }}-modules-
       # Install Anchor
       - name: Install Anchor
-       # A temporary workaround until 0.25.0 binary is added. See https://github.com/coral-xyz/anchor/issues/2076
-        run: yarn global add @project-serum/anchor-cli@0.24.2
+        run: yarn global add @coral-xyz/anchor-cli@0.26.0
 
       # Deploy
       - name: Cache build

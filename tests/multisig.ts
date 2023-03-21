@@ -14,8 +14,8 @@
       --provider.cluster localnet\
       -- --features devnet
  */
-import * as anchor from "@project-serum/anchor";
-import { AnchorError, AnchorProvider, BN, Program } from '@project-serum/anchor';
+import * as anchor from "@coral-xyz/anchor";
+import { AnchorError, AnchorProvider, BN, Program } from '@coral-xyz/anchor';
 import { Keypair, LAMPORTS_PER_SOL, PublicKey, SystemProgram, Transaction } from '@solana/web3.js';
 import { MeanMultisig } from "../target/types/mean_multisig";
 import { assert, expect } from "chai";
@@ -100,6 +100,8 @@ describe("multisig", async () => {
         assert.ok(settingsAccount.createTransactionFee.eq(new BN(20_000_000)));
     });
 
+    // separate init settings is not needed anymore because it is done as part
+    // of the 'before' hook
     // it("init settings", async () => {
     //     await program.methods.initSettings().accounts({
     //         payer: payer,

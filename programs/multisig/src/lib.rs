@@ -58,8 +58,8 @@ pub mod mean_multisig {
         }
 
         assert_unique_owners(&owners)?;
-        require!(threshold > 0 && threshold <= owners.len() as u64, InvalidThreshold);
-        require!(owners.len() > 0 && owners.len() <= 10, InvalidOwnersLen);
+        require!(threshold > 0 && threshold <= owners.len() as u64, ErrorCode::InvalidThreshold);
+        require!(owners.len() > 0 && owners.len() <= 10, ErrorCode::InvalidOwnersLen);
 
         let multisig = &mut ctx.accounts.multisig;
 
@@ -115,8 +115,8 @@ pub mod mean_multisig {
     ) -> Result<()> {
 
         assert_unique_owners(&owners)?;
-        require!(threshold > 0 && threshold <= owners.len() as u64, InvalidThreshold);
-        require!(owners.len() > 0 && owners.len() <= 10, InvalidOwnersLen);
+        require!(threshold > 0 && threshold <= owners.len() as u64, ErrorCode::InvalidThreshold);
+        require!(owners.len() > 0 && owners.len() <= 10, ErrorCode::InvalidOwnersLen);
 
         let multisig = &mut ctx.accounts.multisig;
         let mut multisig_owners = [OwnerData::default(); 10];
@@ -827,7 +827,7 @@ fn assert_unique_owners(owners: &[Owner]) -> Result<()> {
     for (i, owner) in owners.iter().enumerate() {
         require!(
             !owners.iter().skip(i + 1).any(|item| item.address.eq(&owner.address)),
-            UniqueOwners
+            ErrorCode::UniqueOwners
         )
     }
     Ok(())

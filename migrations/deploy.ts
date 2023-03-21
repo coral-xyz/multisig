@@ -4,7 +4,7 @@
 
 
 import { PublicKey, SystemProgram } from '@solana/web3.js';
-import * as anchor from "@project-serum/anchor";
+import * as anchor from "@coral-xyz/anchor";
 import { MeanMultisig } from "../target/types/mean_multisig"; 
 
 
