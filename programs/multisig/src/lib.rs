@@ -98,6 +98,21 @@ pub mod coral_multisig {
         Ok(())
     }
 
+    // Unapproves a transaction on behalf of an owner of the multisig.
+    pub fn unapprove(ctx: Context<Unapprove>) -> Result<()> {
+        let owner_index = ctx
+            .accounts
+            .multisig
+            .owners
+            .iter()
+            .position(|a| a == ctx.accounts.owner.key)
+            .ok_or(ErrorCode::InvalidOwner)?;
+
+        ctx.accounts.transaction.signers[owner_index] = false;
+
+        Ok(())
+    }
+
     // Set owners and threshold at once.
     pub fn set_owners_and_change_threshold<'info>(
         ctx: Context<'_, '_, '_, 'info, Auth<'info>>,
@@ -215,6 +230,17 @@ pub struct Approve<'info> {
     transaction: Box<Account<'info, Transaction>>,
     // One of the multisig owners. Checked in the handler.
     owner: Signer<'info>,
+}
+
+#[derive(Accounts)]
+pub struct Unapprove<'info> {
+    #[account(constraint = multisig.owner_set_seqno == transaction.owner_set_seqno)]
+    multisig: ProgramAccount<'info, Multisig>,
+    #[account(mut, has_one = multisig)]
+    transaction: ProgramAccount<'info, Transaction>,
+    // One of the multisig owners. Checked in the handler.
+    #[account(signer)]
+    owner: AccountInfo<'info>,
 }
 
 #[derive(Accounts)]
