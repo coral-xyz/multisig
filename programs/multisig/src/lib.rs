@@ -168,17 +168,11 @@ pub mod coral_multisig {
 
         // Execute the transaction signed by the multisig.
         let mut ix: Instruction = (*ctx.accounts.transaction).deref().into();
-        ix.accounts = ix
-            .accounts
-            .iter()
-            .map(|acc| {
-                let mut acc = acc.clone();
-                if &acc.pubkey == ctx.accounts.multisig_signer.key {
-                    acc.is_signer = true;
-                }
-                acc
-            })
-            .collect();
+        for acc in ix.accounts.iter_mut() {
+            if &acc.pubkey == ctx.accounts.multisig_signer.key {
+                acc.is_signer = true;
+            }
+        }
         let multisig_key = ctx.accounts.multisig.key();
         let seeds = &[multisig_key.as_ref(), &[ctx.accounts.multisig.nonce]];
         let signer = &[&seeds[..]];
